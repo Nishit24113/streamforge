@@ -1,0 +1,46 @@
+{
+  "pipeline": "ecommerce-events",
+  "events": [
+    {
+      "user_id": "user-001",
+      "action": "purchase",
+      "amount": 99.99,
+      "product_id": "prod-101",
+      "timestamp": 1726617600000,
+      "event_type": "transaction"
+    },
+    {
+      "user_id": "user-002",
+      "action": "add_to_cart",
+      "amount": 49.99,
+      "product_id": "prod-205",
+      "timestamp": 1726617660000,
+      "event_type": "transaction"
+    },
+    {
+      "user_id": "user-003",
+      "action": "purchase",
+      "amount": 249.99,
+      "product_id": "prod-050",
+      "timestamp": 1726617720000,
+      "event_type": "transaction"
+    },
+    {
+      "user_id": "user-001",
+      "action": "page_view",
+      "amount": 0,
+      "product_id": "prod-300",
+      "timestamp": 1726617780000,
+      "event_type": "engagement"
+    },
+    {
+      "user_id": "user-004",
+      "action": "purchase",
+      "amount": 15000.00,
+      "product_id": "prod-999",
+      "timestamp": 1726617840000,
+      "event_type": "transaction",
+      "_note": "This should trigger anomaly detection (unusually high amount)"
+    }
+  ]
+}
