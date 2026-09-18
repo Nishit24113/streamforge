@@ -1,0 +1,55 @@
+{
+  "pipeline_id": "web-analytics",
+  "name": "Web Analytics Pipeline",
+  "description": "Track page views, user sessions, and engagement metrics with bot detection",
+  "source": {
+    "type": "api",
+    "format": "json"
+  },
+  "steps": [
+    {
+      "type": "validate",
+      "schema": {
+        "page_url": "string",
+        "session_id": "string",
+        "timestamp": "number"
+      },
+      "reject_nulls": ["page_url", "session_id"]
+    },
+    {
+      "type": "transform",
+      "operations": [
+        { "op": "add_field", "name": "processed_at", "value": "$NOW" },
+        { "op": "add_field", "name": "event_id", "value": "$UUID" },
+        { "op": "hash", "field": "ip_address", "algorithm": "sha256" },
+        { "op": "lowercase", "field": "page_url" },
+        { "op": "default", "field": "referrer", "value": "direct" },
+        { "op": "default", "field": "device_type", "value": "unknown" },
+        { "op": "extract", "source": "geo", "target": "country", "key": "country" }
+      ]
+    },
+    {
+      "type": "detect_anomalies",
+      "field": "session_duration",
+      "method": "iqr"
+    },
+    {
+      "type": "aggregate",
+      "window": "1h",
+      "group_by": ["page_url"],
+      "metrics": [
+        { "field": "session_id", "agg": "count_distinct", "alias": "unique_visitors" },
+        { "field": "session_duration", "agg": "avg", "alias": "avg_session_duration" },
+        { "field": "session_duration", "agg": "p95", "alias": "p95_session_duration" },
+        { "field": "page_url", "agg": "count", "alias": "page_views" }
+      ]
+    }
+  ],
+  "detect_anomalies": true,
+  "aggregate": true,
+  "output": {
+    "raw": "s3://streamforge-lake/raw/web/",
+    "clean": "s3://streamforge-lake/clean/web/",
+    "aggregated": "s3://streamforge-lake/agg/web/"
+  }
+}

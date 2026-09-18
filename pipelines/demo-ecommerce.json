@@ -1,0 +1,60 @@
+{
+  "pipeline_id": "ecommerce-events",
+  "name": "E-Commerce Event Pipeline",
+  "description": "Process purchase events, detect fraudulent transactions, aggregate revenue metrics",
+  "source": {
+    "type": "api",
+    "format": "json"
+  },
+  "steps": [
+    {
+      "type": "validate",
+      "schema": {
+        "user_id": "string",
+        "action": "string",
+        "amount": "number",
+        "timestamp": "number"
+      },
+      "reject_nulls": ["user_id", "action"],
+      "range_checks": {
+        "amount": { "min": 0, "max": 100000 }
+      }
+    },
+    {
+      "type": "transform",
+      "operations": [
+        { "op": "rename", "from": "user_id", "to": "customer_id" },
+        { "op": "add_field", "name": "processed_at", "value": "$NOW" },
+        { "op": "add_field", "name": "event_id", "value": "$UUID" },
+        { "op": "cast", "field": "amount", "to": "decimal" },
+        { "op": "lowercase", "field": "action" },
+        { "op": "default", "field": "currency", "value": "USD" }
+      ]
+    },
+    {
+      "type": "detect_anomalies",
+      "field": "amount",
+      "method": "isolation_forest",
+      "contamination": 0.05
+    },
+    {
+      "type": "aggregate",
+      "window": "1h",
+      "group_by": ["action"],
+      "metrics": [
+        { "field": "amount", "agg": "sum", "alias": "total_revenue" },
+        { "field": "amount", "agg": "avg", "alias": "avg_order_value" },
+        { "field": "amount", "agg": "max", "alias": "max_order" },
+        { "field": "customer_id", "agg": "count_distinct", "alias": "unique_customers" },
+        { "field": "amount", "agg": "p95", "alias": "p95_order_value" }
+      ]
+    }
+  ],
+  "detect_anomalies": true,
+  "aggregate": true,
+  "output": {
+    "raw": "s3://streamforge-lake/raw/ecommerce/",
+    "clean": "s3://streamforge-lake/clean/ecommerce/",
+    "aggregated": "s3://streamforge-lake/agg/ecommerce/"
+  }
+}

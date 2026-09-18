@@ -1,0 +1,59 @@
+{
+  "pipeline_id": "iot-sensors",
+  "name": "IoT Sensor Data Pipeline",
+  "description": "Ingest sensor readings, detect equipment anomalies, aggregate by device and location",
+  "source": {
+    "type": "api",
+    "format": "json"
+  },
+  "steps": [
+    {
+      "type": "validate",
+      "schema": {
+        "device_id": "string",
+        "sensor_type": "string",
+        "value": "number",
+        "timestamp": "number"
+      },
+      "reject_nulls": ["device_id", "value"],
+      "range_checks": {
+        "value": { "min": -273.15, "max": 10000 }
+      }
+    },
+    {
+      "type": "transform",
+      "operations": [
+        { "op": "add_field", "name": "ingested_at", "value": "$NOW" },
+        { "op": "add_field", "name": "event_id", "value": "$UUID" },
+        { "op": "default", "field": "unit", "value": "celsius" },
+        { "op": "default", "field": "location", "value": "unknown" },
+        { "op": "cast", "field": "value", "to": "decimal" }
+      ]
+    },
+    {
+      "type": "detect_anomalies",
+      "field": "value",
+      "method": "zscore",
+      "threshold": 3.0
+    },
+    {
+      "type": "aggregate",
+      "window": "5m",
+      "group_by": ["device_id", "sensor_type"],
+      "metrics": [
+        { "field": "value", "agg": "avg", "alias": "avg_reading" },
+        { "field": "value", "agg": "min", "alias": "min_reading" },
+        { "field": "value", "agg": "max", "alias": "max_reading" },
+        { "field": "value", "agg": "stddev", "alias": "reading_stddev" },
+        { "field": "value", "agg": "count", "alias": "sample_count" }
+      ]
+    }
+  ],
+  "detect_anomalies": true,
+  "aggregate": true,
+  "output": {
+    "raw": "s3://streamforge-lake/raw/iot/",
+    "clean": "s3://streamforge-lake/clean/iot/",
+    "aggregated": "s3://streamforge-lake/agg/iot/"
+  }
+}
