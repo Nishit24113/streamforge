@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# CDK
+infrastructure/cdk.out/
+infrastructure/node_modules/
+
+# Dashboard
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# AWS
+.aws-sam/
+samconfig.toml
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Temp
+tmp/
+temp/
+*.tmp
+
+# Data files (don't commit sample data)
+data/*.csv
+data/*.json
+data/*.parquet
+!data/samples/
