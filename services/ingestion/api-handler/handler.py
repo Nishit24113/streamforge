@@ -1,0 +1,234 @@
+import json
+import os
+import time
+import uuid
+import boto3
+
+KINESIS_STREAM = os.environ.get('KINESIS_STREAM', 'streamforge-events')
+PIPELINE_TABLE = os.environ.get('PIPELINE_TABLE', 'streamforge-pipelines')
+RUN_HISTORY_TABLE = os.environ.get('RUN_HISTORY_TABLE', 'streamforge-runs')
+DATA_LAKE_BUCKET = os.environ.get('DATA_LAKE_BUCKET', 'streamforge-lake')
+DLQ_URL = os.environ.get('DLQ_URL', '')
+
+kinesis = boto3.client('kinesis')
+dynamodb = boto3.resource('dynamodb')
+s3 = boto3.client('s3')
+sqs = boto3.client('sqs')
+
+pipeline_table = dynamodb.Table(PIPELINE_TABLE)
+run_table = dynamodb.Table(RUN_HISTORY_TABLE)
+
+
+def lambda_handler(event, context):
+    http_method = event.get('httpMethod', 'GET')
+    path = event.get('path', '/')
+    path_params = event.get('pathParameters') or {}
+
+    try:
+        if path == '/v1/health' and http_method == 'GET':
+            return handle_health()
+
+        if path == '/v1/ingest' and http_method == 'POST':
+            return handle_ingest(event)
+
+        if path == '/v1/upload' and http_method == 'POST':
+            return handle_upload(event)
+
+        if path == '/v1/pipelines' and http_method == 'GET':
+            return handle_list_pipelines()
+
+        if path == '/v1/pipelines' and http_method == 'POST':
+            return handle_create_pipeline(event)
+
+        if '/v1/pipelines/' in path and '/runs' in path:
+            pipeline_id = path_params.get('pipeline_id', '')
+            return handle_get_runs(pipeline_id)
+
+        if '/v1/pipelines/' in path:
+            pipeline_id = path_params.get('pipeline_id', '')
+            return handle_get_pipeline(pipeline_id)
+
+        return response(404, {'error': 'Not found'})
+
+    except Exception as e:
+        return response(500, {'error': str(e)})
+
+
+def handle_health():
+    return response(200, {
+        'status': 'healthy',
+        'service': 'streamforge-ingestion',
+        'timestamp': int(time.time()),
+        'version': '1.0.0',
+    })
+
+
+def handle_ingest(event):
+    body = json.loads(event.get('body', '{}'))
+    pipeline_id = body.get('pipeline', 'default')
+    events = body.get('events', [])
+
+    if not events:
+        return response(400, {'error': 'No events provided'})
+
+    if len(events) > 500:
+        return response(400, {'error': 'Maximum 500 events per request'})
+
+    run_id = f'run-{uuid.uuid4().hex[:12]}'
+    now = int(time.time() * 1000)
+
+    records = []
+    for evt in events:
+        record = {
+            'event_id': evt.get('event_id', f'evt-{uuid.uuid4().hex[:12]}'),
+            'pipeline_id': pipeline_id,
+            'timestamp': evt.get('timestamp', now),
+            'source': evt.get('source', 'api'),
+            'event_type': evt.get('event_type', evt.get('type', 'unknown')),
+            'payload': json.dumps(evt),
+            'ingested_at': now,
+            'run_id': run_id,
+        }
+
+        records.append({
+            'Data': json.dumps(record).encode('utf-8'),
+            'PartitionKey': pipeline_id,
+        })
+
+    failed = 0
+    for i in range(0, len(records), 100):
+        batch = records[i:i + 100]
+        try:
+            resp = kinesis.put_records(
+                StreamName=KINESIS_STREAM,
+                Records=batch,
+            )
+            failed += resp.get('FailedRecordCount', 0)
+        except Exception as e:
+            if DLQ_URL:
+                for rec in batch:
+                    sqs.send_message(
+                        QueueUrl=DLQ_URL,
+                        MessageBody=rec['Data'].decode('utf-8'),
+                    )
+            failed += len(batch)
+
+    run_table.put_item(Item={
+        'pipeline_id': pipeline_id,
+        'run_id': run_id,
+        'status': 'INGESTED',
+        'started_at': int(time.time()),
+        'events_count': len(events),
+        'failed_count': failed,
+        'ttl': int(time.time()) + (30 * 24 * 60 * 60),
+    })
+
+    return response(202, {
+        'status': 'accepted',
+        'pipeline': pipeline_id,
+        'run_id': run_id,
+        'events_received': len(events),
+        'events_failed': failed,
+    })
+
+
+def handle_upload(event):
+    body = json.loads(event.get('body', '{}'))
+    pipeline_id = body.get('pipeline', 'default')
+    filename = body.get('filename', f'upload-{uuid.uuid4().hex[:8]}.json')
+    content_type = body.get('content_type', 'application/json')
+
+    upload_key = f'uploads/{pipeline_id}/{int(time.time())}/{filename}'
+
+    presigned = s3.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': DATA_LAKE_BUCKET,
+            'Key': upload_key,
+            'ContentType': content_type,
+        },
+        ExpiresIn=3600,
+    )
+
+    return response(200, {
+        'upload_url': presigned,
+        'key': upload_key,
+        'pipeline': pipeline_id,
+        'expires_in': 3600,
+    })
+
+
+def handle_list_pipelines():
+    result = pipeline_table.scan(Limit=100)
+    pipelines = result.get('Items', [])
+
+    return response(200, {
+        'pipelines': pipelines,
+        'count': len(pipelines),
+    })
+
+
+def handle_create_pipeline(event):
+    body = json.loads(event.get('body', '{}'))
+
+    pipeline_id = body.get('pipeline_id', f'pipeline-{uuid.uuid4().hex[:8]}')
+    name = body.get('name', pipeline_id)
+
+    pipeline = {
+        'pipeline_id': pipeline_id,
+        'name': name,
+        'description': body.get('description', ''),
+        'steps': body.get('steps', []),
+        'source': body.get('source', {'type': 'api', 'format': 'json'}),
+        'output': body.get('output', {}),
+        'detect_anomalies': body.get('detect_anomalies', False),
+        'aggregate': body.get('aggregate', False),
+        'created_at': int(time.time()),
+        'updated_at': int(time.time()),
+        'status': 'ACTIVE',
+    }
+
+    pipeline_table.put_item(Item=pipeline)
+
+    return response(201, {
+        'status': 'created',
+        'pipeline': pipeline,
+    })
+
+
+def handle_get_pipeline(pipeline_id):
+    result = pipeline_table.get_item(Key={'pipeline_id': pipeline_id})
+    item = result.get('Item')
+
+    if not item:
+        return response(404, {'error': f'Pipeline {pipeline_id} not found'})
+
+    return response(200, {'pipeline': item})
+
+
+def handle_get_runs(pipeline_id):
+    result = run_table.query(
+        KeyConditionExpression='pipeline_id = :pid',
+        ExpressionAttributeValues={':pid': pipeline_id},
+        ScanIndexForward=False,
+        Limit=50,
+    )
+
+    return response(200, {
+        'pipeline_id': pipeline_id,
+        'runs': result.get('Items', []),
+        'count': result.get('Count', 0),
+    })
+
+
+def response(status_code, body):
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key,X-Pipeline-Id',
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        },
+        'body': json.dumps(body, default=str),
+    }
