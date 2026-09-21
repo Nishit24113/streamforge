@@ -1,0 +1,43 @@
+{
+  "name": "streamforge",
+  "version": "1.0.0",
+  "description": "Node.js/TypeScript SDK for the StreamForge serverless real-time data pipeline platform",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./middleware": {
+      "import": "./dist/middleware.js",
+      "types": "./dist/middleware.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "streamforge",
+    "data-pipeline",
+    "real-time",
+    "serverless",
+    "analytics",
+    "ingestion",
+    "events"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^5.4.0"
+  }
+}

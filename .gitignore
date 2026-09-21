@@ -18,6 +18,14 @@ dashboard/node_modules/
 dashboard/dist/
 dashboard/.vite/
 
+# SDKs
+sdk/node/node_modules/
+sdk/node/dist/
+sdk/python/*.egg-info/
+
+# CLI
+cli/node_modules/
+
 # Environment
 .env
 .env.local

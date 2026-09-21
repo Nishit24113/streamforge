@@ -1,0 +1,23 @@
+{
+  "name": "streamforge-cli",
+  "version": "1.0.0",
+  "description": "CLI for the StreamForge serverless real-time data pipeline platform",
+  "main": "bin/streamforge.js",
+  "bin": {
+    "streamforge": "./bin/streamforge.js"
+  },
+  "scripts": {
+    "start": "node bin/streamforge.js"
+  },
+  "keywords": [
+    "streamforge",
+    "data-pipeline",
+    "serverless",
+    "real-time",
+    "cli"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -2,7 +2,7 @@
 
 **Real-Time Serverless Data Pipeline Platform for AWS**
 
-StreamForge is a production-grade data engineering platform that ingests, transforms, and analyzes streaming data in real time. Built entirely on AWS serverless services, it provides configurable ETL pipelines, a columnar data lake, serverless SQL analytics, and a live monitoring dashboard.
+StreamForge is a production-grade, multi-tenant data engineering platform that ingests, transforms, and analyzes streaming data in real time. Built entirely on AWS serverless services, it provides configurable ETL pipelines, a columnar data lake, serverless SQL analytics, and a live monitoring dashboard. Integrate with any project in 1-2 commands.
 
 ---
 
@@ -17,6 +17,8 @@ Traditional data pipeline tools (Airflow, Spark, Kafka) require cluster manageme
 | Cost (dev/test) | $0-5/month | $200-500/month |
 | Setup time | 15 minutes | Days to weeks |
 | Maintenance | None | Ongoing |
+| Integration | 1-2 commands | Custom integration |
+| Multi-tenant | Built-in | Custom implementation |
 
 ---
 
@@ -29,12 +31,12 @@ Data Sources                    Ingestion              Processing
 ├──────────┤     │           │ API Gateway │─────▶│  Pipeline Engine  │
 │ REST API │─────┼──────────▶│  + Lambda   │      │                  │
 ├──────────┤     │           │             │      │  ┌────────────┐  │
-│ CSV/JSON │─────┘           └─────────────┘      │  │ Transform  │  │
-│  Upload  │                        │              │  │ Validate   │  │
-└──────────┘                        │              │  │ Enrich     │  │
+│ CSV/JSON │─────┘           └─────────────┘      │  │ Validate   │  │
+│  Upload  │                        │              │  │ Transform  │  │
+└──────────┘                        │              │  │ ML Detect  │  │
                                     ▼              │  │ Aggregate  │  │
-                             ┌─────────────┐      │  │ ML Detect  │  │
-                             │  Kinesis     │      │  └────────────┘  │
+                             ┌─────────────┐      │  └────────────┘  │
+                             │  Kinesis     │      │                  │
                              │  Data Stream │─────▶│                  │
                              └─────────────┘      └────────┬─────────┘
                                                            │
@@ -58,39 +60,103 @@ Data Sources                    Ingestion              Processing
 
 ---
 
+## Quick Integration (1-2 Commands)
+
+### Option 1: CLI
+
+```bash
+npx streamforge-cli init
+# Follow prompts → creates .streamforge.json, installs SDK
+```
+
+### Option 2: Python SDK
+
+```bash
+pip install streamforge
+```
+
+```python
+from streamforge import StreamForge
+
+sf = StreamForge("https://your-api-url.com")
+sf.ingest("my-pipeline", [{"user": "john", "action": "purchase", "amount": 99.99}])
+```
+
+### Option 3: Node.js SDK
+
+```bash
+npm install streamforge
+```
+
+```typescript
+import { StreamForge } from 'streamforge';
+
+const sf = new StreamForge({ apiUrl: 'https://your-api-url.com' });
+await sf.ingest('my-pipeline', [{ user: 'john', action: 'purchase', amount: 99.99 }]);
+```
+
+### Option 4: Express Middleware (Zero-Code Integration)
+
+```typescript
+import { streamforgeMiddleware } from 'streamforge/middleware';
+
+app.use(streamforgeMiddleware({
+  pipelineId: 'web-analytics',
+  apiUrl: 'https://your-api-url.com',
+}));
+```
+
+### Option 5: Python Decorator
+
+```python
+from streamforge.decorators import streamforge_track
+
+@streamforge_track("web-analytics")
+def handle_request(request):
+    return process(request)
+```
+
+---
+
 ## Features
 
 ### Data Ingestion
-- **REST API** — Send JSON events via HTTP POST
-- **Webhook Receiver** — Accept events from external services (GitHub, Stripe, etc.)
-- **File Upload** — Upload CSV/JSON files for batch processing
-- **Kinesis Streaming** — Real-time event stream with auto-scaling
+- **REST API** — Send JSON events via HTTP POST (batch up to 500)
+- **Webhook Receiver** — GitHub, Stripe, and custom webhook parsers with HMAC verification
+- **File Upload** — Upload CSV/JSON via presigned URLs, auto-processed by S3 trigger
+- **Kinesis Streaming** — On-demand scaling, 24h retention, DLQ fallback
 
 ### Pipeline Engine (Step Functions)
-- **Configurable Pipelines** — Define transformation steps via JSON config
-- **Built-in Transforms** — Filter, map, rename, type-cast, flatten, aggregate
-- **Data Validation** — Schema validation with rejection handling
-- **ML Enrichment** — Anomaly detection using Isolation Forest
-- **Dead Letter Queue** — Failed records captured for debugging
+- **12 Built-in Transforms** — rename, cast, flatten, hash, filter, map_values, extract, add_field, remove_field, lowercase, uppercase, default
+- **Schema Validation** — Type checking, null rejection, range bounds
+- **4 Anomaly Detection Algorithms** — Isolation Forest, Z-Score, IQR, MAD
+- **9 Aggregation Metrics** — sum, avg, min, max, count, count_distinct, stddev, p50, p95, p99
+- **Time-Window Aggregations** — 1m, 5m, 15m, 1h, 6h, 1d windows with group-by
 
 ### Data Lake (S3 + Parquet)
-- **Columnar Storage** — Apache Parquet for 90% compression
-- **Partitioned by Date** — Efficient time-range queries
 - **Three-Zone Architecture** — Raw → Clean → Aggregated
-- **Automatic Lifecycle** — Old data moves to Glacier after 90 days
+- **Date Partitioned** — year/month/day for efficient Athena queries
+- **Lifecycle Management** — Infrequent Access at 30d, Glacier at 90d
+- **Snappy Compression** — ~90% size reduction
 
 ### Analytics (Athena)
-- **Serverless SQL** — Query petabytes without infrastructure
-- **Pre-built Queries** — Common analytics out of the box
-- **Cost-Effective** — Pay only $5 per TB scanned
-- **Glue Catalog** — Automatic schema discovery
+- **Serverless SQL** — Query petabytes, pay $5/TB scanned
+- **1GB Scan Limit** — Cost guardrails per query via workgroup
+- **SQL Injection Protection** — Only SELECT/WITH/SHOW/DESCRIBE allowed
+- **Pre-built Named Queries** — Event counts, anomaly summary, hourly throughput
 
-### Dashboard (React)
-- **Live Pipeline Monitor** — Real-time execution status
-- **Data Explorer** — Browse and query your data lake
-- **Anomaly Alerts** — Visual anomaly detection timeline
-- **Pipeline Builder** — Configure pipelines through UI
-- **Cost Tracker** — Monitor AWS spend in real time
+### Multi-Tenant SaaS
+- **Organization Isolation** — X-Org-Id header for tenant separation
+- **Per-Tenant Pipelines** — Pipeline listing filtered by org
+- **Tenant-Scoped Storage** — S3 paths include org context
+- **SDK Support** — `org_id` parameter on all SDK clients
+
+### Dashboard (React 19)
+- **Live Overview** — 6 stat cards, 4 real-time charts
+- **Pipeline Monitor** — Expandable cards with run history, test data sender
+- **Anomaly Timeline** — Scatter chart with severity filtering
+- **SQL Query Editor** — Full SQL with auto-polling and CSV export
+- **Data Explorer** — Three-zone S3 browser with storage visualization
 
 ---
 
@@ -99,36 +165,40 @@ Data Sources                    Ingestion              Processing
 ### Backend
 | Technology | Purpose |
 |-----------|---------|
-| **Python 3.12** | Lambda functions, data processing |
-| **AWS Lambda** (ARM64) | Serverless compute |
-| **API Gateway** | REST API + WebSocket |
-| **Kinesis Data Streams** | Real-time event streaming |
+| **Python 3.12** | Lambda functions |
+| **AWS Lambda** (ARM64/Graviton) | Serverless compute |
+| **API Gateway** | REST API with CORS |
+| **Kinesis Data Streams** | Real-time event streaming (on-demand) |
 | **Step Functions** | Pipeline orchestration |
-| **S3** | Data lake storage |
-| **Apache Parquet** | Columnar data format |
-| **Athena** | Serverless SQL queries |
-| **Glue Data Catalog** | Schema management |
-| **DynamoDB** | Metadata and config storage |
+| **S3** | Three-zone data lake |
+| **Apache Parquet** | Columnar storage with Snappy |
+| **Athena v3** | Serverless SQL analytics |
+| **Glue Data Catalog** | Schema registry |
+| **DynamoDB** | Metadata, run history, alerts (with TTL) |
 | **SQS** | Dead letter queue |
-| **EventBridge** | Scheduled pipeline triggers |
 
 ### Frontend
 | Technology | Purpose |
 |-----------|---------|
 | **React 19** | UI framework |
-| **Vite 8** | Build tool |
-| **Tailwind CSS 3** | Styling |
-| **Framer Motion** | Animations |
-| **Recharts** | Data visualization |
-| **React Query** | Server state management |
-| **Monaco Editor** | SQL query editor |
+| **Vite 6** | Build tool |
+| **Tailwind CSS 3** | Glass-morphism design system |
+| **Framer Motion** | Smooth animations |
+| **Recharts** | Area, Bar, Line, Scatter, Pie charts |
+| **React Query** | Server state with auto-refresh |
 
 ### Infrastructure
 | Technology | Purpose |
 |-----------|---------|
 | **AWS CDK 2.x** | Infrastructure as Code (TypeScript) |
-| **Python** | Lambda runtime |
-| **Bash** | Deployment scripts |
+| **4 CloudFormation Stacks** | Storage, Ingestion, Processing, Analytics |
+
+### SDKs & CLI
+| Component | Install |
+|-----------|---------|
+| **Python SDK** | `pip install streamforge` |
+| **Node.js SDK** | `npm install streamforge` |
+| **CLI** | `npx streamforge-cli` |
 
 ---
 
@@ -137,35 +207,30 @@ Data Sources                    Ingestion              Processing
 ### Prerequisites
 - AWS account with CLI configured
 - Node.js 18+ and Python 3.10+
-- Git
 
-### Deploy (One Command)
+### Deploy to AWS
+
 ```bash
 git clone https://github.com/Nishit24113/streamforge.git
 cd streamforge
 ./deploy.sh --profile YOUR_AWS_PROFILE --region us-west-2
 ```
 
-### Local Development
+### Local Development (No AWS)
+
 ```bash
-# Start dashboard locally (no AWS needed)
-cd dashboard
-npm install
-npm run dev
-# Open http://localhost:5173
+cd dashboard && npm install && npm run dev
+# Dashboard at http://localhost:5173 with mock data
 ```
 
-### Send Test Data
+### CLI Quick Start
+
 ```bash
-# Send event via API
-curl -X POST https://YOUR-API.amazonaws.com/v1/ingest \
-  -H "Content-Type: application/json" \
-  -d '{
-    "pipeline": "demo",
-    "events": [
-      {"user_id": "u123", "action": "purchase", "amount": 99.99, "timestamp": 1726617600}
-    ]
-  }'
+streamforge init                           # Interactive setup
+streamforge connect https://your-api.com   # Connect to deployed API
+streamforge status                         # Check health + stats
+streamforge ingest my-pipeline data.json   # Send events from file
+streamforge deploy --profile sandbox2025   # Deploy infrastructure
 ```
 
 ---
@@ -176,89 +241,84 @@ curl -X POST https://YOUR-API.amazonaws.com/v1/ingest \
 streamforge/
 ├── infrastructure/          # AWS CDK (TypeScript)
 │   ├── lib/
-│   │   ├── ingestion-stack.ts    # API Gateway, Kinesis, Lambda
-│   │   ├── processing-stack.ts   # Step Functions, Transform Lambdas
-│   │   ├── storage-stack.ts      # S3 data lake, DynamoDB, Glue
-│   │   └── analytics-stack.ts    # Athena, workgroups, queries
-│   ├── bin/streamforge.ts
-│   ├── package.json
-│   └── tsconfig.json
+│   │   ├── storage-stack.ts       # S3, DynamoDB, Glue
+│   │   ├── ingestion-stack.ts     # API Gateway, Kinesis, Lambda
+│   │   ├── processing-stack.ts    # Step Functions, Transform Lambdas
+│   │   └── analytics-stack.ts     # Athena, workgroups, queries
+│   └── bin/streamforge.ts
 │
-├── services/                # Lambda functions
+├── services/                # Lambda functions (Python 3.12)
 │   ├── ingestion/
-│   │   ├── api-handler/          # API Gateway event receiver
-│   │   ├── webhook-handler/      # Webhook processor
-│   │   └── file-processor/       # CSV/JSON file ingestion
+│   │   ├── api-handler/           # REST API (ingest, pipelines, upload)
+│   │   ├── webhook-handler/       # GitHub/Stripe/generic webhooks
+│   │   └── file-processor/        # CSV/JSON S3 trigger
 │   ├── processing/
-│   │   ├── transformer/          # Data transformation engine
-│   │   ├── validator/            # Schema validation
-│   │   ├── aggregator/           # Time-window aggregations
-│   │   └── anomaly-detector/     # ML anomaly detection
+│   │   ├── stream-processor/      # Kinesis → Step Functions
+│   │   ├── validator/             # Schema validation
+│   │   ├── transformer/           # 12 transform operations
+│   │   ├── anomaly-detector/      # 4 ML algorithms
+│   │   └── aggregator/            # Time-window aggregations
 │   ├── analytics/
-│   │   ├── query-runner/         # Athena query executor
-│   │   └── catalog-manager/      # Glue catalog management
+│   │   └── query-runner/          # Athena SQL executor
 │   └── shared/
-│       ├── parquet_writer.py     # Parquet serialization
-│       └── config.py             # Shared configuration
+│       ├── config.py              # Connection pooling
+│       └── parquet_writer.py      # Parquet serialization
 │
-├── dashboard/               # React frontend
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── PipelineMonitor.jsx
-│   │   │   ├── DataExplorer.jsx
-│   │   │   ├── QueryEditor.jsx
-│   │   │   ├── AnomalyTimeline.jsx
-│   │   │   └── PipelineBuilder.jsx
-│   │   ├── utils/
-│   │   └── App.jsx
-│   └── package.json
+├── dashboard/               # React 19 frontend
+│   └── src/
+│       ├── components/
+│       │   ├── Overview.jsx       # Stats + 4 charts
+│       │   ├── PipelineMonitor.jsx # Pipeline cards + test data
+│       │   ├── AnomalyTimeline.jsx # Scatter chart + list
+│       │   ├── QueryEditor.jsx    # SQL editor + results
+│       │   └── DataExplorer.jsx   # S3 browser + storage chart
+│       ├── utils/api.js           # API client + mock data
+│       └── App.jsx                # Layout + navigation
 │
-├── pipelines/               # Pipeline definitions
-│   ├── demo-ecommerce.json
-│   ├── demo-iot-sensors.json
-│   └── demo-web-analytics.json
+├── sdk/                     # Integration SDKs
+│   ├── python/                    # pip install streamforge
+│   │   └── streamforge/
+│   │       ├── client.py          # StreamForge client class
+│   │       └── decorators.py      # @streamforge_event, @streamforge_track
+│   └── node/                      # npm install streamforge
+│       └── src/
+│           ├── index.ts           # StreamForge client class
+│           └── middleware.ts       # Express/Fastify middleware
 │
-├── deploy.sh                # One-click deployment
-├── cleanup.sh               # AWS resource cleanup
-└── README.md
+├── cli/                     # streamforge-cli
+│   ├── bin/streamforge.js         # CLI entry point
+│   └── src/commands/              # init, connect, ingest, status, deploy
+│
+├── pipelines/               # Demo pipeline configs
+│   ├── demo-ecommerce.json        # E-commerce with anomaly detection
+│   ├── demo-iot-sensors.json      # IoT sensor readings
+│   └── demo-web-analytics.json    # Web analytics with PII hashing
+│
+├── data/samples/            # Sample data for testing
+├── deploy.sh                # One-click deployment script
+└── LICENSE                  # MIT
 ```
 
 ---
 
 ## Pipeline Configuration
 
-Define pipelines as JSON:
-
 ```json
 {
   "name": "ecommerce-events",
-  "description": "Process e-commerce purchase events",
-  "source": {
-    "type": "api",
-    "format": "json"
-  },
   "steps": [
     {
       "type": "validate",
-      "schema": {
-        "user_id": "string",
-        "action": "string",
-        "amount": "number",
-        "timestamp": "number"
-      }
+      "schema": { "user_id": "string", "amount": "number" },
+      "reject_nulls": ["user_id"]
     },
     {
       "type": "transform",
       "operations": [
         { "op": "rename", "from": "user_id", "to": "customer_id" },
         { "op": "add_field", "name": "processed_at", "value": "$NOW" },
-        { "op": "cast", "field": "amount", "to": "decimal" }
+        { "op": "hash", "field": "email", "algorithm": "sha256" }
       ]
-    },
-    {
-      "type": "enrich",
-      "lookup": "customer-metadata",
-      "key": "customer_id"
     },
     {
       "type": "detect_anomalies",
@@ -271,17 +331,14 @@ Define pipelines as JSON:
       "window": "1h",
       "group_by": ["action"],
       "metrics": [
-        { "field": "amount", "agg": "sum" },
-        { "field": "amount", "agg": "avg" },
-        { "field": "customer_id", "agg": "count_distinct" }
+        { "field": "amount", "agg": "sum", "alias": "total_revenue" },
+        { "field": "amount", "agg": "p95", "alias": "p95_order_value" },
+        { "field": "customer_id", "agg": "count_distinct", "alias": "unique_customers" }
       ]
     }
   ],
-  "output": {
-    "raw": "s3://streamforge-lake/raw/ecommerce/",
-    "clean": "s3://streamforge-lake/clean/ecommerce/",
-    "aggregated": "s3://streamforge-lake/agg/ecommerce/"
-  }
+  "detect_anomalies": true,
+  "aggregate": true
 }
 ```
 
@@ -289,7 +346,6 @@ Define pipelines as JSON:
 
 ## Cost Analysis
 
-### With AWS Free Tier
 | Service | Free Tier | Expected Usage | Monthly Cost |
 |---------|-----------|----------------|-------------|
 | Lambda | 1M requests | 500K | $0 |
@@ -297,33 +353,9 @@ Define pipelines as JSON:
 | S3 | 5GB | 2GB | $0 |
 | DynamoDB | 25GB | 5GB | $0 |
 | Athena | — | 10GB scanned | $0.05 |
-| Kinesis | — | Shard hours | ~$3 |
+| Kinesis | — | On-demand | ~$3 |
 | Step Functions | 4000 transitions | 3000 | $0 |
 | **Total** | | | **~$3-5/month** |
-
-### vs Traditional Stack
-| Solution | Monthly Cost |
-|----------|-------------|
-| **StreamForge** | $3-5 |
-| Kafka + Spark (AWS EMR) | $300-800 |
-| Databricks | $500-2000 |
-| Snowflake + Fivetran | $400-1500 |
-
-**Savings: 95-99%**
-
----
-
-## Skills Demonstrated
-
-- **Data Engineering** — ETL pipelines, streaming, batch processing
-- **Data Lake Architecture** — S3 + Parquet + Glue + Athena
-- **Stream Processing** — Kinesis real-time event handling
-- **Pipeline Orchestration** — Step Functions state machines
-- **ML in Production** — Anomaly detection in data pipelines
-- **Serverless Architecture** — Zero infrastructure management
-- **Infrastructure as Code** — AWS CDK (TypeScript)
-- **Full-Stack Development** — React dashboard with SQL editor
-- **Cost Optimization** — 95%+ savings vs traditional tools
 
 ---
 
