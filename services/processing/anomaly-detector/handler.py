@@ -71,11 +71,12 @@ def lambda_handler(event, context):
 
 def detect_zscore(events, field, threshold=2.5):
     values = extract_values(events, field)
-    if len(values) < 5:
+    valid_values = [v for v in values if v is not None]
+    if len(valid_values) < 5:
         return 0
 
-    mean = sum(values) / len(values)
-    variance = sum((v - mean) ** 2 for v in values) / len(values)
+    mean = sum(valid_values) / len(valid_values)
+    variance = sum((v - mean) ** 2 for v in valid_values) / len(valid_values)
     std = math.sqrt(variance) if variance > 0 else 1
 
     count = 0
@@ -116,11 +117,12 @@ def detect_iqr(events, field):
 
 def detect_mad(events, field, threshold=3.5):
     values = extract_values(events, field)
-    if len(values) < 5:
+    valid_values = [v for v in values if v is not None]
+    if len(valid_values) < 5:
         return 0
 
-    median = sorted(values)[len(values) // 2]
-    abs_deviations = sorted(abs(v - median) for v in values)
+    median = sorted(valid_values)[len(valid_values) // 2]
+    abs_deviations = sorted(abs(v - median) for v in valid_values)
     mad = abs_deviations[len(abs_deviations) // 2]
 
     if mad == 0:
@@ -140,10 +142,12 @@ def detect_mad(events, field, threshold=3.5):
 
 def detect_isolation_forest(events, field, contamination=0.05):
     values = extract_values(events, field)
-    if len(values) < 20:
+    valid_values = [v for v in values if v is not None]
+    if len(valid_values) < 20:
         return detect_zscore(events, field, 2.5)
 
-    n = len(values)
+    valid_indices = [i for i, v in enumerate(values) if v is not None]
+    n = len(valid_values)
     n_trees = 100
     sample_size = min(256, n)
     scores = [0.0] * n
@@ -153,13 +157,12 @@ def detect_isolation_forest(events, field, contamination=0.05):
 
     for _ in range(n_trees):
         sample_indices = rng.sample(range(n), min(sample_size, n))
-        sample_vals = [values[i] for i in sample_indices]
+        sample_vals = [valid_values[i] for i in sample_indices]
 
         for idx in range(n):
-            depth = simulate_isolation(values[idx], sample_vals, rng)
+            depth = simulate_isolation(valid_values[idx], sample_vals, rng)
             scores[idx] += depth
 
-    avg_path = sum(scores) / n if n > 0 else 1
     c_n = 2 * (math.log(sample_size - 1) + 0.5772156649) - (2 * (sample_size - 1) / sample_size)
 
     anomaly_scores = []
@@ -173,10 +176,10 @@ def detect_isolation_forest(events, field, contamination=0.05):
     threshold = sorted_scores[min(n_anomalies, len(sorted_scores) - 1)]
 
     count = 0
-    for evt, score in zip(events, anomaly_scores):
-        if score >= threshold:
-            evt['is_anomaly'] = True
-            evt['anomaly_score'] = round(score, 4)
+    for score_idx, event_idx in enumerate(valid_indices):
+        if anomaly_scores[score_idx] >= threshold:
+            events[event_idx]['is_anomaly'] = True
+            events[event_idx]['anomaly_score'] = round(anomaly_scores[score_idx], 4)
             count += 1
 
     return count
@@ -206,7 +209,7 @@ def extract_values(events, field):
     values = []
     for evt in events:
         val = get_numeric_value(evt, field)
-        values.append(val if val is not None else 0)
+        values.append(val)
     return values
 
 

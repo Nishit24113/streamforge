@@ -96,8 +96,7 @@ export class StorageStack extends cdk.Stack {
       },
     });
 
-    // Glue table for raw events
-    new glue.CfnTable(this, 'RawEventsTable', {
+    const rawEventsTable = new glue.CfnTable(this, 'RawEventsTable', {
       catalogId: this.account,
       databaseName: 'streamforge',
       tableInput: {
@@ -132,9 +131,9 @@ export class StorageStack extends cdk.Stack {
         ],
       },
     });
+    rawEventsTable.addDependency(this.glueDatabase);
 
-    // Glue table for clean/transformed events
-    new glue.CfnTable(this, 'CleanEventsTable', {
+    const cleanEventsTable = new glue.CfnTable(this, 'CleanEventsTable', {
       catalogId: this.account,
       databaseName: 'streamforge',
       tableInput: {
@@ -171,6 +170,7 @@ export class StorageStack extends cdk.Stack {
         ],
       },
     });
+    cleanEventsTable.addDependency(this.glueDatabase);
 
     // Outputs
     new cdk.CfnOutput(this, 'DataLakeBucketName', {

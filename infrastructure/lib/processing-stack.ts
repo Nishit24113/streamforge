@@ -111,6 +111,12 @@ export class ProcessingStack extends cdk.Stack {
       retryOnServiceExceptions: true,
     });
 
+    const aggregateStepAlt = new tasks.LambdaInvoke(this, 'AggregateEventsAlt', {
+      lambdaFunction: aggregator,
+      outputPath: '$.Payload',
+      retryOnServiceExceptions: true,
+    });
+
     const hasAnomalyDetection = sfn.Condition.booleanEquals('$.pipeline_config.detect_anomalies', true);
     const hasAggregation = sfn.Condition.booleanEquals('$.pipeline_config.aggregate', true);
 
@@ -124,6 +130,16 @@ export class ProcessingStack extends cdk.Stack {
       },
     });
 
+    const recordSuccessNoAnomalies = new sfn.Pass(this, 'RecordSuccessNoAnomalies', {
+      parameters: {
+        'status': 'COMPLETED',
+        'pipeline_id.$': '$.pipeline_id',
+        'run_id.$': '$.run_id',
+        'events_processed.$': '$.events_processed',
+        'anomalies_detected': 0,
+      },
+    });
+
     const recordFailure = new sfn.Pass(this, 'RecordFailure', {
       parameters: {
         'status': 'FAILED',
@@ -133,7 +149,6 @@ export class ProcessingStack extends cdk.Stack {
       },
     });
 
-    // Build the pipeline chain
     const anomalyChoice = new sfn.Choice(this, 'NeedAnomalyDetection?')
       .when(hasAnomalyDetection, detectAnomaliesStep.next(
         new sfn.Choice(this, 'NeedAggregation?')
@@ -142,8 +157,8 @@ export class ProcessingStack extends cdk.Stack {
       ))
       .otherwise(
         new sfn.Choice(this, 'NeedAggregationOnly?')
-          .when(hasAggregation, aggregateStep.next(recordSuccess))
-          .otherwise(recordSuccess)
+          .when(hasAggregation, aggregateStepAlt.next(recordSuccessNoAnomalies))
+          .otherwise(recordSuccessNoAnomalies)
       );
 
     const definition = validateStep

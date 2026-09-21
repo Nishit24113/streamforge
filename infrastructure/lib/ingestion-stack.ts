@@ -6,6 +6,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as path from 'path';
 import { Construct } from 'constructs';
 
@@ -73,8 +74,8 @@ export class IngestionStack extends cdk.Stack {
     });
 
     this.ingestionStream.grantWrite(apiHandler);
-    props.pipelineConfigTable.grantReadData(apiHandler);
-    props.runHistoryTable.grantWriteData(apiHandler);
+    props.pipelineConfigTable.grantReadWriteData(apiHandler);
+    props.runHistoryTable.grantReadWriteData(apiHandler);
     props.dataLakeBucket.grantWrite(apiHandler);
     dlq.grantSendMessages(apiHandler);
 
@@ -117,6 +118,12 @@ export class IngestionStack extends cdk.Stack {
     props.pipelineConfigTable.grantReadData(fileProcessor);
     props.dataLakeBucket.grantRead(fileProcessor);
 
+    props.dataLakeBucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED,
+      new s3n.LambdaDestination(fileProcessor),
+      { prefix: 'uploads/' },
+    );
+
     // API Gateway
     this.api = new apigateway.RestApi(this, 'StreamForgeApi', {
       restApiName: 'StreamForge API',
@@ -129,7 +136,7 @@ export class IngestionStack extends cdk.Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
-        allowHeaders: ['Content-Type', 'Authorization', 'X-Api-Key', 'X-Pipeline-Id'],
+        allowHeaders: ['Content-Type', 'Authorization', 'X-Api-Key', 'X-Pipeline-Id', 'X-Org-Id'],
       },
     });
 

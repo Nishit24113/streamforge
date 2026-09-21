@@ -19,26 +19,32 @@ pipeline_table = dynamodb.Table(PIPELINE_TABLE)
 run_table = dynamodb.Table(RUN_HISTORY_TABLE)
 
 
+def get_org_id(event):
+    headers = event.get('headers') or {}
+    return headers.get('X-Org-Id') or headers.get('x-org-id') or 'default'
+
+
 def lambda_handler(event, context):
     http_method = event.get('httpMethod', 'GET')
     path = event.get('path', '/')
     path_params = event.get('pathParameters') or {}
+    org_id = get_org_id(event)
 
     try:
         if path == '/v1/health' and http_method == 'GET':
             return handle_health()
 
         if path == '/v1/ingest' and http_method == 'POST':
-            return handle_ingest(event)
+            return handle_ingest(event, org_id)
 
         if path == '/v1/upload' and http_method == 'POST':
-            return handle_upload(event)
+            return handle_upload(event, org_id)
 
         if path == '/v1/pipelines' and http_method == 'GET':
-            return handle_list_pipelines()
+            return handle_list_pipelines(org_id)
 
         if path == '/v1/pipelines' and http_method == 'POST':
-            return handle_create_pipeline(event)
+            return handle_create_pipeline(event, org_id)
 
         if '/v1/pipelines/' in path and '/runs' in path:
             pipeline_id = path_params.get('pipeline_id', '')
@@ -63,8 +69,8 @@ def handle_health():
     })
 
 
-def handle_ingest(event):
-    body = json.loads(event.get('body', '{}'))
+def handle_ingest(event, org_id='default'):
+    body = json.loads(event.get('body') or '{}')
     pipeline_id = body.get('pipeline', 'default')
     events = body.get('events', [])
 
@@ -85,6 +91,7 @@ def handle_ingest(event):
             'timestamp': evt.get('timestamp', now),
             'source': evt.get('source', 'api'),
             'event_type': evt.get('event_type', evt.get('type', 'unknown')),
+            'org_id': org_id,
             'payload': json.dumps(evt),
             'ingested_at': now,
             'run_id': run_id,
@@ -132,13 +139,13 @@ def handle_ingest(event):
     })
 
 
-def handle_upload(event):
-    body = json.loads(event.get('body', '{}'))
+def handle_upload(event, org_id='default'):
+    body = json.loads(event.get('body') or '{}')
     pipeline_id = body.get('pipeline', 'default')
     filename = body.get('filename', f'upload-{uuid.uuid4().hex[:8]}.json')
     content_type = body.get('content_type', 'application/json')
 
-    upload_key = f'uploads/{pipeline_id}/{int(time.time())}/{filename}'
+    upload_key = f'uploads/{org_id}/{pipeline_id}/{int(time.time())}/{filename}'
 
     presigned = s3.generate_presigned_url(
         'put_object',
@@ -158,8 +165,12 @@ def handle_upload(event):
     })
 
 
-def handle_list_pipelines():
-    result = pipeline_table.scan(Limit=100)
+def handle_list_pipelines(org_id='default'):
+    from boto3.dynamodb.conditions import Attr
+    result = pipeline_table.scan(
+        Limit=100,
+        FilterExpression=Attr('org_id').eq(org_id) | Attr('org_id').not_exists(),
+    )
     pipelines = result.get('Items', [])
 
     return response(200, {
@@ -168,8 +179,8 @@ def handle_list_pipelines():
     })
 
 
-def handle_create_pipeline(event):
-    body = json.loads(event.get('body', '{}'))
+def handle_create_pipeline(event, org_id='default'):
+    body = json.loads(event.get('body') or '{}')
 
     pipeline_id = body.get('pipeline_id', f'pipeline-{uuid.uuid4().hex[:8]}')
     name = body.get('name', pipeline_id)
@@ -186,6 +197,7 @@ def handle_create_pipeline(event):
         'created_at': int(time.time()),
         'updated_at': int(time.time()),
         'status': 'ACTIVE',
+        'org_id': org_id,
     }
 
     pipeline_table.put_item(Item=pipeline)
@@ -227,7 +239,7 @@ def response(status_code, body):
         'headers': {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key,X-Pipeline-Id',
+            'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key,X-Pipeline-Id,X-Org-Id',
             'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
         },
         'body': json.dumps(body, default=str),

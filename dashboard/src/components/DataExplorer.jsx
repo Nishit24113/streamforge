@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import {
   FolderTree, File, HardDrive, Layers, ArrowRight, RefreshCw,
@@ -194,7 +194,7 @@ export default function DataExplorer() {
               />
               <Bar dataKey="size" radius={[8, 8, 0, 0]}>
                 {sizeByZone.map((entry) => (
-                  <motion.rect key={entry.zone} fill={entry.fill} />
+                  <Cell key={entry.zone} fill={entry.fill} />
                 ))}
               </Bar>
             </BarChart>

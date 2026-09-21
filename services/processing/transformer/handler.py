@@ -12,20 +12,21 @@ s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 run_table = dynamodb.Table(RUN_HISTORY_TABLE)
 
-OPERATIONS = {
-    'rename': op_rename,
-    'add_field': op_add_field,
-    'remove_field': op_remove_field,
-    'cast': op_cast,
-    'flatten': op_flatten,
-    'filter': op_filter,
-    'map_values': op_map_values,
-    'extract': op_extract,
-    'lowercase': op_lowercase,
-    'uppercase': op_uppercase,
-    'default': op_default,
-    'hash': op_hash,
-}
+def _get_operations():
+    return {
+        'rename': op_rename,
+        'add_field': op_add_field,
+        'remove_field': op_remove_field,
+        'cast': op_cast,
+        'flatten': op_flatten,
+        'filter': op_filter,
+        'map_values': op_map_values,
+        'extract': op_extract,
+        'lowercase': op_lowercase,
+        'uppercase': op_uppercase,
+        'default': op_default,
+        'hash': op_hash,
+    }
 
 
 def lambda_handler(event, context):
@@ -54,13 +55,21 @@ def lambda_handler(event, context):
         else:
             record = copy.deepcopy(payload)
 
+        ops = _get_operations()
         for step in transform_steps:
             operations = step.get('operations', [])
             for op_config in operations:
                 op_name = op_config.get('op', '')
-                handler = OPERATIONS.get(op_name)
+                handler = ops.get(op_name)
                 if handler:
                     record = handler(record, op_config)
+                    if record is None:
+                        break
+            if record is None:
+                break
+
+        if record is None:
+            continue
 
         clean_event = {
             'event_id': evt.get('event_id', f'evt-{uuid.uuid4().hex[:12]}'),

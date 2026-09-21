@@ -13,16 +13,15 @@ kinesis = boto3.client('kinesis')
 dynamodb = boto3.resource('dynamodb')
 pipeline_table = dynamodb.Table(PIPELINE_TABLE)
 
-WEBHOOK_PARSERS = {
-    'github': parse_github,
-    'stripe': parse_stripe,
-    'generic': parse_generic,
-}
+def get_org_id(event):
+    headers = event.get('headers') or {}
+    return headers.get('X-Org-Id') or headers.get('x-org-id') or 'default'
 
 
 def lambda_handler(event, context):
     path_params = event.get('pathParameters') or {}
     pipeline_id = path_params.get('pipeline_id', 'default')
+    org_id = get_org_id(event)
 
     try:
         pipeline = pipeline_table.get_item(
@@ -40,10 +39,15 @@ def lambda_handler(event, context):
             if not verify_signature(event, secret, webhook_type):
                 return response(401, {'error': 'Invalid webhook signature'})
 
-        body = json.loads(event.get('body', '{}'))
+        body = json.loads(event.get('body') or '{}')
         headers = event.get('headers', {})
 
-        parser = WEBHOOK_PARSERS.get(webhook_type, parse_generic)
+        parsers = {
+            'github': parse_github,
+            'stripe': parse_stripe,
+            'generic': parse_generic,
+        }
+        parser = parsers.get(webhook_type, parse_generic)
         events = parser(body, headers)
 
         now = int(time.time() * 1000)
@@ -60,16 +64,18 @@ def lambda_handler(event, context):
                 'payload': json.dumps(evt),
                 'ingested_at': now,
                 'run_id': run_id,
+                'org_id': org_id,
             }
             records.append({
                 'Data': json.dumps(record).encode('utf-8'),
                 'PartitionKey': pipeline_id,
             })
 
-        if records:
+        for i in range(0, len(records), 100):
+            batch = records[i:i + 100]
             kinesis.put_records(
                 StreamName=KINESIS_STREAM,
-                Records=records[:100],
+                Records=batch,
             )
 
         return response(200, {
@@ -132,7 +138,7 @@ def parse_generic(body, headers):
 
 
 def verify_signature(event, secret, webhook_type):
-    body = event.get('body', '')
+    body = event.get('body') or ''
     headers = event.get('headers', {})
 
     if webhook_type == 'github':

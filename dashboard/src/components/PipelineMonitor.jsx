@@ -8,6 +8,7 @@ import {
 import { listPipelines, getPipelineRuns, ingestEvents } from '../utils/api';
 
 const STATUS_STYLES = {
+  ACTIVE: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', icon: CheckCircle2 },
   COMPLETED: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', icon: CheckCircle2 },
   PROCESSING: { bg: 'bg-blue-500/10', text: 'text-blue-400', icon: Loader2 },
   INGESTED: { bg: 'bg-amber-500/10', text: 'text-amber-400', icon: Clock },

@@ -124,7 +124,20 @@ function mockStats() {
 }
 
 function mockQuery(sql) {
-  return { status: 'completed', query_id: `q-${Date.now().toString(36)}`, message: 'Mock query' };
+  return {
+    status: 'completed',
+    query_id: `q-${Date.now().toString(36)}`,
+    columns: ['event_type', 'event_count', 'event_date'],
+    rows: [
+      { event_type: 'purchase', event_count: '1247', event_date: '2026-09-18' },
+      { event_type: 'page_view', event_count: '8923', event_date: '2026-09-18' },
+      { event_type: 'signup', event_count: '234', event_date: '2026-09-18' },
+      { event_type: 'add_to_cart', event_count: '3412', event_date: '2026-09-18' },
+    ],
+    row_count: 4,
+    bytes_scanned: 1048576,
+    execution_time_ms: 2340,
+  };
 }
 
 function mockQueryResults(queryId) {

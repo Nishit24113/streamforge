@@ -43,16 +43,20 @@ def lambda_handler(event, context):
 
 
 def handle_run_query(event):
-    body = json.loads(event.get('body', '{}'))
+    body = json.loads(event.get('body') or '{}')
     sql = body.get('sql', '')
 
     if not sql:
         return response(400, {'error': 'SQL query required'})
 
-    forbidden = ['drop', 'delete', 'insert', 'update', 'create', 'alter', 'truncate']
+    import re
     sql_lower = sql.lower().strip()
+    if not re.match(r'^(select|with|show|describe|explain)\b', sql_lower):
+        return response(400, {'error': 'Only SELECT/WITH/SHOW/DESCRIBE/EXPLAIN queries are allowed'})
+
+    forbidden = ['drop', 'delete', 'insert', 'update', 'create', 'alter', 'truncate']
     for word in forbidden:
-        if sql_lower.startswith(word):
+        if re.search(r'\b' + word + r'\b', sql_lower):
             return response(400, {'error': f'Operation not allowed: {word}'})
 
     result = athena.start_query_execution(
@@ -187,7 +191,7 @@ def response(status_code, body):
         'headers': {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+            'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Api-Key,X-Org-Id',
             'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
         },
         'body': json.dumps(body, default=str),
