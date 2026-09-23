@@ -120,6 +120,13 @@ def handle_request(request):
 
 ## Features
 
+### Monitoring & Alerting (NEW! 🎉)
+- **CloudWatch Dashboard** — Real-time metrics for ingestion, processing, anomalies
+- **Custom Metrics** — Events processed, anomalies detected, anomaly rate per pipeline
+- **Automated Alerts** — SNS notifications for high failure rate, anomaly spikes, throttling, dead pipelines
+- **4 Production Alarms** — Pipeline failures, data quality issues, Kinesis throttling, no-data detection
+- See [MONITORING.md](MONITORING.md) for full documentation
+
 ### Data Ingestion
 - **REST API** — Send JSON events via HTTP POST (batch up to 500)
 - **Webhook Receiver** — GitHub, Stripe, and custom webhook parsers with HMAC verification

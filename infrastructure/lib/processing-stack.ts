@@ -86,6 +86,14 @@ export class ProcessingStack extends cdk.Stack {
       props.alertsTable.grantWriteData(fn);
     });
 
+    // Grant CloudWatch metrics permissions to anomaly detector
+    anomalyDetector.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ['cloudwatch:PutMetricData'],
+        resources: ['*'],
+      })
+    );
+
     // Step Functions Pipeline — orchestrates the processing flow
     const validateStep = new tasks.LambdaInvoke(this, 'ValidateEvents', {
       lambdaFunction: validator,

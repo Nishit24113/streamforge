@@ -5,6 +5,7 @@ import { StorageStack } from '../lib/storage-stack';
 import { IngestionStack } from '../lib/ingestion-stack';
 import { ProcessingStack } from '../lib/processing-stack';
 import { AnalyticsStack } from '../lib/analytics-stack';
+import { MonitoringStack } from '../lib/monitoring-stack';
 
 const app = new cdk.App();
 
@@ -36,6 +37,14 @@ new AnalyticsStack(app, 'StreamForgeAnalyticsStack', {
   dataLakeBucket: storage.dataLakeBucket,
   pipelineConfigTable: storage.pipelineConfigTable,
   runHistoryTable: storage.runHistoryTable,
+});
+
+new MonitoringStack(app, 'StreamForgeMonitoringStack', {
+  env,
+  ingestionStream: ingestion.ingestionStream,
+  pipelineStateMachine: processing.pipelineStateMachine,
+  runHistoryTable: storage.runHistoryTable,
+  alertsTable: storage.alertsTable,
 });
 
 app.synth();

@@ -11,6 +11,7 @@ RUN_HISTORY_TABLE = os.environ.get('RUN_HISTORY_TABLE', 'streamforge-runs')
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
+cloudwatch = boto3.client('cloudwatch')
 alerts_table = dynamodb.Table(ALERTS_TABLE)
 run_table = dynamodb.Table(RUN_HISTORY_TABLE)
 
@@ -57,6 +58,9 @@ def lambda_handler(event, context):
     write_results(events, pipeline_id, run_id)
 
     update_run_status(pipeline_id, run_id, anomaly_count)
+
+    # Publish custom metrics to CloudWatch
+    publish_metrics(pipeline_id, len(events), anomaly_count)
 
     return {
         'pipeline_id': pipeline_id,
@@ -301,3 +305,43 @@ def update_run_status(pipeline_id, run_id, anomaly_count):
             ':t': int(time.time()),
         },
     )
+
+
+def publish_metrics(pipeline_id, events_processed, anomalies_detected):
+    """Publish custom metrics to CloudWatch for dashboard and alerting."""
+    try:
+        from datetime import datetime
+        cloudwatch.put_metric_data(
+            Namespace='StreamForge',
+            MetricData=[
+                {
+                    'MetricName': 'EventsProcessed',
+                    'Value': events_processed,
+                    'Unit': 'Count',
+                    'Timestamp': datetime.utcnow(),
+                    'Dimensions': [
+                        {'Name': 'PipelineId', 'Value': pipeline_id},
+                    ],
+                },
+                {
+                    'MetricName': 'AnomaliesDetected',
+                    'Value': anomalies_detected,
+                    'Unit': 'Count',
+                    'Timestamp': datetime.utcnow(),
+                    'Dimensions': [
+                        {'Name': 'PipelineId', 'Value': pipeline_id},
+                    ],
+                },
+                {
+                    'MetricName': 'AnomalyRate',
+                    'Value': (anomalies_detected / events_processed * 100) if events_processed > 0 else 0,
+                    'Unit': 'Percent',
+                    'Timestamp': datetime.utcnow(),
+                    'Dimensions': [
+                        {'Name': 'PipelineId', 'Value': pipeline_id},
+                    ],
+                },
+            ],
+        )
+    except Exception as e:
+        print(f'Failed to publish CloudWatch metrics: {e}')
