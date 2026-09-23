@@ -1,0 +1,96 @@
+{
+  "id": "web-analytics",
+  "name": "Web Analytics",
+  "description": "Track page views, user sessions, and conversions with PII hashing for GDPR compliance",
+  "category": "marketing",
+  "variables": {
+    "pipeline_name": {
+      "description": "Name for your pipeline",
+      "default": "web-analytics",
+      "required": true
+    },
+    "pii_fields": {
+      "description": "Comma-separated list of PII fields to hash (email, ip_address, user_agent)",
+      "default": "email,ip_address",
+      "required": false
+    },
+    "aggregation_window": {
+      "description": "Time window for session aggregation (15m, 1h, 6h)",
+      "default": "1h",
+      "required": false
+    }
+  },
+  "config": {
+    "name": "{{pipeline_name}}",
+    "steps": [
+      {
+        "type": "validate",
+        "schema": {
+          "user_id": "string",
+          "page_url": "string",
+          "event": "string",
+          "timestamp": "number"
+        },
+        "reject_nulls": ["user_id", "page_url", "event"]
+      },
+      {
+        "type": "transform",
+        "operations": [
+          {
+            "op": "hash",
+            "field": "email",
+            "algorithm": "sha256"
+          },
+          {
+            "op": "hash",
+            "field": "ip_address",
+            "algorithm": "sha256"
+          },
+          {
+            "op": "add_field",
+            "name": "processed_at",
+            "value": "$NOW"
+          },
+          {
+            "op": "extract",
+            "field": "page_url",
+            "pattern": "^https?://([^/]+)",
+            "to": "domain"
+          },
+          {
+            "op": "lowercase",
+            "field": "event"
+          }
+        ]
+      },
+      {
+        "type": "aggregate",
+        "window": "{{aggregation_window}}",
+        "group_by": ["page_url", "event"],
+        "metrics": [
+          {
+            "field": "user_id",
+            "agg": "count_distinct",
+            "alias": "unique_visitors"
+          },
+          {
+            "field": "event",
+            "agg": "count",
+            "alias": "total_events"
+          }
+        ]
+      }
+    ],
+    "detect_anomalies": false,
+    "aggregate": true
+  },
+  "sample_event": {
+    "user_id": "user_67890",
+    "email": "visitor@example.com",
+    "ip_address": "192.168.1.1",
+    "page_url": "https://example.com/products/shoes",
+    "event": "page_view",
+    "referrer": "https://google.com",
+    "timestamp": 1695000000000
+  }
+}

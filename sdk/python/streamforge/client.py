@@ -146,3 +146,35 @@ class StreamForge:
     def get_anomalies(self, pipeline_id: str | None = None) -> dict:
         params = f'?pipeline_id={pipeline_id}' if pipeline_id else ''
         return self._request('GET', f'{self.analytics_url}/anomalies{params}')
+
+    def list_templates(self) -> dict:
+        """List all available pipeline templates."""
+        return self._request('GET', f'{self.api_url}/templates')
+
+    def get_template(self, template_id: str) -> dict:
+        """Get a specific template with variables and sample events."""
+        return self._request('GET', f'{self.api_url}/templates/{template_id}')
+
+    def create_from_template(self, template_id: str, variables: dict[str, Any] | None = None) -> dict:
+        """
+        Create a pipeline from a template with variable substitution.
+
+        Args:
+            template_id: Template ID (e.g., 'ecommerce', 'iot-sensors')
+            variables: Template variables (e.g., {'pipeline_name': 'my-pipeline', 'anomaly_threshold': '0.05'})
+
+        Returns:
+            dict: Created pipeline details
+
+        Example:
+            >>> sf = StreamForge('https://api.streamforge.com')
+            >>> sf.create_from_template('ecommerce', {
+            ...     'pipeline_name': 'my-ecommerce',
+            ...     'anomaly_threshold': '0.05',
+            ...     'aggregation_window': '1h'
+            ... })
+        """
+        return self._request('POST', f'{self.api_url}/pipelines/from-template', json={
+            'template_id': template_id,
+            'variables': variables or {},
+        })

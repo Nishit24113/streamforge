@@ -1,0 +1,102 @@
+{
+  "id": "ecommerce",
+  "name": "E-Commerce Events",
+  "description": "Track purchases, cart actions, and detect fraudulent transactions using anomaly detection",
+  "category": "retail",
+  "variables": {
+    "pipeline_name": {
+      "description": "Name for your pipeline",
+      "default": "ecommerce-events",
+      "required": true
+    },
+    "anomaly_threshold": {
+      "description": "Contamination rate for fraud detection (0.01-0.10)",
+      "default": "0.05",
+      "required": false
+    },
+    "aggregation_window": {
+      "description": "Time window for revenue aggregation (1m, 5m, 15m, 1h)",
+      "default": "1h",
+      "required": false
+    }
+  },
+  "config": {
+    "name": "{{pipeline_name}}",
+    "steps": [
+      {
+        "type": "validate",
+        "schema": {
+          "user_id": "string",
+          "event_type": "string",
+          "amount": "number",
+          "timestamp": "number"
+        },
+        "reject_nulls": ["user_id", "event_type"]
+      },
+      {
+        "type": "transform",
+        "operations": [
+          {
+            "op": "rename",
+            "from": "user_id",
+            "to": "customer_id"
+          },
+          {
+            "op": "hash",
+            "field": "email",
+            "algorithm": "sha256"
+          },
+          {
+            "op": "add_field",
+            "name": "processed_at",
+            "value": "$NOW"
+          },
+          {
+            "op": "cast",
+            "field": "amount",
+            "to": "float"
+          }
+        ]
+      },
+      {
+        "type": "detect_anomalies",
+        "field": "amount",
+        "method": "isolation_forest",
+        "contamination": "{{anomaly_threshold}}"
+      },
+      {
+        "type": "aggregate",
+        "window": "{{aggregation_window}}",
+        "group_by": ["event_type"],
+        "metrics": [
+          {
+            "field": "amount",
+            "agg": "sum",
+            "alias": "total_revenue"
+          },
+          {
+            "field": "amount",
+            "agg": "p95",
+            "alias": "p95_order_value"
+          },
+          {
+            "field": "customer_id",
+            "agg": "count_distinct",
+            "alias": "unique_customers"
+          }
+        ]
+      }
+    ],
+    "detect_anomalies": true,
+    "aggregate": true
+  },
+  "sample_event": {
+    "user_id": "user_12345",
+    "email": "customer@example.com",
+    "event_type": "purchase",
+    "amount": 99.99,
+    "currency": "USD",
+    "product_id": "prod_abc",
+    "timestamp": 1695000000000
+  }
+}

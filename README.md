@@ -62,14 +62,20 @@ Data Sources                    Ingestion              Processing
 
 ## Quick Integration (1-2 Commands)
 
-### Option 1: CLI
+### Option 1: Use a Template (Fastest!)
 
 ```bash
-npx streamforge-cli init
-# Follow prompts → creates .streamforge.json, installs SDK
+# Install CLI
+npm install -g streamforge-cli
+
+# Create pipeline from template
+streamforge create from-template ecommerce --name my-shop-events
+
+# Start sending events
+streamforge ingest my-shop-events events.json
 ```
 
-### Option 2: Python SDK
+### Option 2: Python SDK with Template
 
 ```bash
 pip install streamforge
@@ -79,7 +85,15 @@ pip install streamforge
 from streamforge import StreamForge
 
 sf = StreamForge("https://your-api-url.com")
-sf.ingest("my-pipeline", [{"user": "john", "action": "purchase", "amount": 99.99}])
+
+# Create pipeline from template
+sf.create_from_template('ecommerce', {
+    'pipeline_name': 'my-shop-events',
+    'anomaly_threshold': '0.05'
+})
+
+# Start ingesting
+sf.ingest("my-shop-events", [{"user_id": "john", "event_type": "purchase", "amount": 99.99}])
 ```
 
 ### Option 3: Node.js SDK
@@ -120,7 +134,14 @@ def handle_request(request):
 
 ## Features
 
-### Monitoring & Alerting (NEW! 🎉)
+### Pipeline Templates (NEW! 🚀)
+- **5 Pre-built Templates** — E-commerce, IoT sensors, web analytics, application logs, financial transactions
+- **Variable Substitution** — Customize thresholds, windows, field names without writing JSON
+- **Instant Setup** — Create production-ready pipelines in one command
+- **SDK & CLI Support** — `sf.create_from_template('ecommerce', {'pipeline_name': 'my-shop'})`
+- See [TEMPLATES.md](TEMPLATES.md) for full documentation
+
+### Monitoring & Alerting
 - **CloudWatch Dashboard** — Real-time metrics for ingestion, processing, anomalies
 - **Custom Metrics** — Events processed, anomalies detected, anomaly rate per pipeline
 - **Automated Alerts** — SNS notifications for high failure rate, anomaly spikes, throttling, dead pipelines

@@ -40,6 +40,18 @@ def lambda_handler(event, context):
         if path == '/v1/upload' and http_method == 'POST':
             return handle_upload(event, org_id)
 
+        # Template endpoints
+        if path == '/v1/templates' and http_method == 'GET':
+            return handle_list_templates()
+
+        if '/v1/templates/' in path and http_method == 'GET':
+            template_id = path_params.get('template_id', '')
+            return handle_get_template(template_id)
+
+        if path == '/v1/pipelines/from-template' and http_method == 'POST':
+            return handle_create_from_template(event, org_id)
+
+        # Pipeline endpoints
         if path == '/v1/pipelines' and http_method == 'GET':
             return handle_list_pipelines(org_id)
 
@@ -230,6 +242,153 @@ def handle_get_runs(pipeline_id):
         'pipeline_id': pipeline_id,
         'runs': result.get('Items', []),
         'count': result.get('Count', 0),
+    })
+
+
+def handle_list_templates():
+    """List all available pipeline templates."""
+    templates = [
+        {
+            'id': 'ecommerce',
+            'name': 'E-Commerce Events',
+            'description': 'Track purchases, cart actions, and detect fraudulent transactions',
+            'category': 'retail',
+            'use_cases': ['fraud detection', 'revenue tracking', 'customer analytics']
+        },
+        {
+            'id': 'iot-sensors',
+            'name': 'IoT Sensor Data',
+            'description': 'Monitor sensor readings with anomaly detection for temperature, pressure, humidity',
+            'category': 'industrial',
+            'use_cases': ['predictive maintenance', 'quality control', 'environmental monitoring']
+        },
+        {
+            'id': 'web-analytics',
+            'name': 'Web Analytics',
+            'description': 'Track page views, user sessions, and conversions with PII hashing',
+            'category': 'marketing',
+            'use_cases': ['conversion tracking', 'session analysis', 'GDPR compliance']
+        },
+        {
+            'id': 'application-logs',
+            'name': 'Application Logs',
+            'description': 'Aggregate error rates, track exceptions, and monitor application health',
+            'category': 'observability',
+            'use_cases': ['error tracking', 'performance monitoring', 'alerting']
+        },
+        {
+            'id': 'financial-transactions',
+            'name': 'Financial Transactions',
+            'description': 'Monitor payments and transfers with fraud detection and compliance tracking',
+            'category': 'fintech',
+            'use_cases': ['fraud detection', 'compliance reporting', 'transaction analytics']
+        }
+    ]
+
+    return response(200, {
+        'templates': templates,
+        'count': len(templates)
+    })
+
+
+def handle_get_template(template_id):
+    """Get a specific template with full configuration and variables."""
+    # In production, these would be loaded from S3 or DynamoDB
+    # For now, return embedded template data
+    template_map = {
+        'ecommerce': {
+            'id': 'ecommerce',
+            'name': 'E-Commerce Events',
+            'description': 'Track purchases, cart actions, and detect fraudulent transactions using anomaly detection',
+            'category': 'retail',
+            'variables': {
+                'pipeline_name': {'description': 'Name for your pipeline', 'default': 'ecommerce-events', 'required': True},
+                'anomaly_threshold': {'description': 'Contamination rate for fraud detection (0.01-0.10)', 'default': '0.05', 'required': False},
+                'aggregation_window': {'description': 'Time window for revenue aggregation (1m, 5m, 15m, 1h)', 'default': '1h', 'required': False}
+            },
+            'sample_event': {
+                'user_id': 'user_12345',
+                'email': 'customer@example.com',
+                'event_type': 'purchase',
+                'amount': 99.99,
+                'currency': 'USD',
+                'product_id': 'prod_abc',
+                'timestamp': 1695000000000
+            }
+        }
+    }
+
+    if template_id not in template_map:
+        return response(404, {'error': f'Template {template_id} not found'})
+
+    return response(200, {'template': template_map[template_id]})
+
+
+def handle_create_from_template(event, org_id='default'):
+    """Create a pipeline from a template with variable substitution."""
+    body = json.loads(event.get('body') or '{}')
+
+    template_id = body.get('template_id')
+    variables = body.get('variables', {})
+
+    if not template_id:
+        return response(400, {'error': 'template_id required'})
+
+    # Get the template configuration (simplified for now)
+    # In production, this would load full template from S3
+    config_templates = {
+        'ecommerce': {
+            'name': variables.get('pipeline_name', 'ecommerce-events'),
+            'steps': [
+                {'type': 'validate', 'schema': {'user_id': 'string', 'amount': 'number'}},
+                {'type': 'transform', 'operations': [{'op': 'hash', 'field': 'email', 'algorithm': 'sha256'}]},
+                {'type': 'detect_anomalies', 'field': 'amount', 'method': 'isolation_forest', 'contamination': float(variables.get('anomaly_threshold', 0.05))},
+                {'type': 'aggregate', 'window': variables.get('aggregation_window', '1h'), 'metrics': [{'field': 'amount', 'agg': 'sum', 'alias': 'total_revenue'}]}
+            ],
+            'detect_anomalies': True,
+            'aggregate': True
+        },
+        'iot-sensors': {
+            'name': variables.get('pipeline_name', 'iot-sensor-monitoring'),
+            'steps': [
+                {'type': 'validate', 'schema': {'device_id': 'string', 'temperature': 'number'}},
+                {'type': 'detect_anomalies', 'field': 'temperature', 'method': 'zscore', 'threshold': float(variables.get('zscore_threshold', 2.5))},
+                {'type': 'aggregate', 'window': variables.get('aggregation_window', '5m'), 'metrics': [{'field': 'temperature', 'agg': 'avg', 'alias': 'avg_temp'}]}
+            ],
+            'detect_anomalies': True,
+            'aggregate': True
+        }
+    }
+
+    if template_id not in config_templates:
+        return response(404, {'error': f'Template {template_id} not found'})
+
+    config = config_templates[template_id]
+    pipeline_id = config['name']
+
+    # Create the pipeline
+    pipeline = {
+        'pipeline_id': pipeline_id,
+        'name': config['name'],
+        'description': f'Pipeline created from template: {template_id}',
+        'steps': config['steps'],
+        'detect_anomalies': config.get('detect_anomalies', False),
+        'aggregate': config.get('aggregate', False),
+        'template_id': template_id,
+        'created_at': int(time.time()),
+        'updated_at': int(time.time()),
+        'status': 'ACTIVE',
+        'org_id': org_id,
+    }
+
+    pipeline_table.put_item(Item=pipeline)
+
+    return response(201, {
+        'status': 'created',
+        'pipeline_id': pipeline_id,
+        'template_id': template_id,
+        'pipeline': pipeline,
+        'message': f'Pipeline {pipeline_id} created from template {template_id}'
     })
 
 

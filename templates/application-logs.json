@@ -1,0 +1,105 @@
+{
+  "id": "application-logs",
+  "name": "Application Logs",
+  "description": "Aggregate error rates, track exceptions, and monitor application health across services",
+  "category": "observability",
+  "variables": {
+    "pipeline_name": {
+      "description": "Name for your pipeline",
+      "default": "app-logs-monitoring",
+      "required": true
+    },
+    "error_threshold": {
+      "description": "Anomaly contamination rate for error spikes (0.01-0.10)",
+      "default": "0.05",
+      "required": false
+    },
+    "aggregation_window": {
+      "description": "Time window for error aggregation (5m, 15m, 1h)",
+      "default": "15m",
+      "required": false
+    }
+  },
+  "config": {
+    "name": "{{pipeline_name}}",
+    "steps": [
+      {
+        "type": "validate",
+        "schema": {
+          "service_name": "string",
+          "log_level": "string",
+          "message": "string",
+          "timestamp": "number"
+        },
+        "reject_nulls": ["service_name", "log_level"]
+      },
+      {
+        "type": "transform",
+        "operations": [
+          {
+            "op": "uppercase",
+            "field": "log_level"
+          },
+          {
+            "op": "add_field",
+            "name": "processed_at",
+            "value": "$NOW"
+          },
+          {
+            "op": "add_field",
+            "name": "is_error",
+            "value": "$IF(log_level IN ['ERROR', 'FATAL'], true, false)"
+          },
+          {
+            "op": "filter",
+            "condition": "log_level IN ['WARN', 'ERROR', 'FATAL']"
+          }
+        ]
+      },
+      {
+        "type": "detect_anomalies",
+        "field": "response_time",
+        "method": "isolation_forest",
+        "contamination": "{{error_threshold}}"
+      },
+      {
+        "type": "aggregate",
+        "window": "{{aggregation_window}}",
+        "group_by": ["service_name", "log_level"],
+        "metrics": [
+          {
+            "field": "log_level",
+            "agg": "count",
+            "alias": "log_count"
+          },
+          {
+            "field": "response_time",
+            "agg": "avg",
+            "alias": "avg_response_time"
+          },
+          {
+            "field": "response_time",
+            "agg": "p95",
+            "alias": "p95_response_time"
+          },
+          {
+            "field": "response_time",
+            "agg": "p99",
+            "alias": "p99_response_time"
+          }
+        ]
+      }
+    ],
+    "detect_anomalies": true,
+    "aggregate": true
+  },
+  "sample_event": {
+    "service_name": "auth-service",
+    "log_level": "error",
+    "message": "Database connection timeout",
+    "exception": "TimeoutError",
+    "stack_trace": "...",
+    "response_time": 5020,
+    "timestamp": 1695000000000
+  }
+}

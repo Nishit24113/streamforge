@@ -1,0 +1,106 @@
+{
+  "id": "iot-sensors",
+  "name": "IoT Sensor Data",
+  "description": "Monitor sensor readings from IoT devices with anomaly detection for temperature, pressure, and humidity",
+  "category": "industrial",
+  "variables": {
+    "pipeline_name": {
+      "description": "Name for your pipeline",
+      "default": "iot-sensor-monitoring",
+      "required": true
+    },
+    "sensor_field": {
+      "description": "Field to monitor for anomalies (temperature, pressure, humidity, vibration)",
+      "default": "temperature",
+      "required": false
+    },
+    "zscore_threshold": {
+      "description": "Z-score threshold for anomaly detection (2.0-4.0)",
+      "default": "2.5",
+      "required": false
+    },
+    "aggregation_window": {
+      "description": "Time window for sensor aggregation (1m, 5m, 15m)",
+      "default": "5m",
+      "required": false
+    }
+  },
+  "config": {
+    "name": "{{pipeline_name}}",
+    "steps": [
+      {
+        "type": "validate",
+        "schema": {
+          "device_id": "string",
+          "sensor_type": "string",
+          "{{sensor_field}}": "number",
+          "timestamp": "number"
+        },
+        "reject_nulls": ["device_id", "sensor_type"]
+      },
+      {
+        "type": "transform",
+        "operations": [
+          {
+            "op": "add_field",
+            "name": "processed_at",
+            "value": "$NOW"
+          },
+          {
+            "op": "cast",
+            "field": "{{sensor_field}}",
+            "to": "float"
+          },
+          {
+            "op": "add_field",
+            "name": "device_status",
+            "value": "active"
+          }
+        ]
+      },
+      {
+        "type": "detect_anomalies",
+        "field": "{{sensor_field}}",
+        "method": "zscore",
+        "threshold": "{{zscore_threshold}}"
+      },
+      {
+        "type": "aggregate",
+        "window": "{{aggregation_window}}",
+        "group_by": ["device_id", "sensor_type"],
+        "metrics": [
+          {
+            "field": "{{sensor_field}}",
+            "agg": "avg",
+            "alias": "avg_reading"
+          },
+          {
+            "field": "{{sensor_field}}",
+            "agg": "min",
+            "alias": "min_reading"
+          },
+          {
+            "field": "{{sensor_field}}",
+            "agg": "max",
+            "alias": "max_reading"
+          },
+          {
+            "field": "{{sensor_field}}",
+            "agg": "stddev",
+            "alias": "reading_stddev"
+          }
+        ]
+      }
+    ],
+    "detect_anomalies": true,
+    "aggregate": true
+  },
+  "sample_event": {
+    "device_id": "sensor_001",
+    "sensor_type": "temperature",
+    "temperature": 72.5,
+    "unit": "fahrenheit",
+    "location": "warehouse_a",
+    "timestamp": 1695000000000
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "id": "financial-transactions",
+  "name": "Financial Transactions",
+  "description": "Monitor payments, transfers, and deposits with fraud detection and compliance tracking",
+  "category": "fintech",
+  "variables": {
+    "pipeline_name": {
+      "description": "Name for your pipeline",
+      "default": "financial-transactions",
+      "required": true
+    },
+    "fraud_threshold": {
+      "description": "Contamination rate for fraud detection (0.01-0.05)",
+      "default": "0.02",
+      "required": false
+    },
+    "aggregation_window": {
+      "description": "Time window for transaction aggregation (15m, 1h, 6h)",
+      "default": "1h",
+      "required": false
+    }
+  },
+  "config": {
+    "name": "{{pipeline_name}}",
+    "steps": [
+      {
+        "type": "validate",
+        "schema": {
+          "transaction_id": "string",
+          "user_id": "string",
+          "amount": "number",
+          "currency": "string",
+          "transaction_type": "string",
+          "timestamp": "number"
+        },
+        "reject_nulls": ["transaction_id", "user_id", "amount"],
+        "range_bounds": {
+          "amount": {
+            "min": 0.01,
+            "max": 1000000
+          }
+        }
+      },
+      {
+        "type": "transform",
+        "operations": [
+          {
+            "op": "cast",
+            "field": "amount",
+            "to": "float"
+          },
+          {
+            "op": "uppercase",
+            "field": "currency"
+          },
+          {
+            "op": "hash",
+            "field": "account_number",
+            "algorithm": "sha256"
+          },
+          {
+            "op": "hash",
+            "field": "routing_number",
+            "algorithm": "sha256"
+          },
+          {
+            "op": "add_field",
+            "name": "processed_at",
+            "value": "$NOW"
+          },
+          {
+            "op": "add_field",
+            "name": "compliance_flag",
+            "value": "$IF(amount > 10000, 'CTR_REQUIRED', 'NORMAL')"
+          }
+        ]
+      },
+      {
+        "type": "detect_anomalies",
+        "field": "amount",
+        "method": "isolation_forest",
+        "contamination": "{{fraud_threshold}}"
+      },
+      {
+        "type": "aggregate",
+        "window": "{{aggregation_window}}",
+        "group_by": ["user_id", "transaction_type"],
+        "metrics": [
+          {
+            "field": "amount",
+            "agg": "sum",
+            "alias": "total_volume"
+          },
+          {
+            "field": "amount",
+            "agg": "count",
+            "alias": "transaction_count"
+          },
+          {
+            "field": "amount",
+            "agg": "avg",
+            "alias": "avg_transaction_size"
+          },
+          {
+            "field": "amount",
+            "agg": "max",
+            "alias": "max_transaction"
+          }
+        ]
+      }
+    ],
+    "detect_anomalies": true,
+    "aggregate": true
+  },
+  "sample_event": {
+    "transaction_id": "txn_abc123",
+    "user_id": "user_456",
+    "account_number": "1234567890",
+    "routing_number": "021000021",
+    "amount": 250.00,
+    "currency": "usd",
+    "transaction_type": "payment",
+    "merchant": "Amazon",
+    "timestamp": 1695000000000
+  }
+}
