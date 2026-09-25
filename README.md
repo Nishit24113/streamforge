@@ -170,6 +170,13 @@ def handle_request(request):
 - **9 Aggregation Metrics** — sum, avg, min, max, count, count_distinct, stddev, p50, p95, p99
 - **Time-Window Aggregations** — 1m, 5m, 15m, 1h, 6h, 1d windows with group-by
 
+### Performance Layer (NEW! ⚡)
+- **Query Result Caching** — 10-50x faster repeat queries with 5-min TTL
+- **Batch Processing** — 50K events/sec with 500-event batches
+- **Connection Pooling** — Reuse boto3 clients across Lambda invocations
+- **ARM64 Lambdas** — 20% faster and cheaper with Graviton2
+- See [PERFORMANCE.md](PERFORMANCE.md) for benchmarks, caching strategies, and cost optimization
+
 ### Data Lake (S3 + Parquet)
 - **Three-Zone Architecture** — Raw → Clean → Aggregated
 - **Date Partitioned** — year/month/day for efficient Athena queries
