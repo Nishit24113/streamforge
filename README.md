@@ -141,6 +141,13 @@ def handle_request(request):
 - **SDK & CLI Support** — `sf.create_from_template('ecommerce', {'pipeline_name': 'my-shop'})`
 - See [TEMPLATES.md](TEMPLATES.md) for full documentation
 
+### Data Quality Metrics (NEW! 📊)
+- **5 Quality Dimensions** — Completeness, freshness, accuracy, uniqueness, schema health
+- **Automated Scoring** — 0-100 quality score calculated per pipeline run
+- **Trend Analysis** — Track quality over time, detect degradation
+- **CloudWatch Integration** — Quality metrics published for alerting
+- See [DATA_QUALITY.md](DATA_QUALITY.md) for scoring methodology and best practices
+
 ### Monitoring & Alerting
 - **CloudWatch Dashboard** — Real-time metrics for ingestion, processing, anomalies
 - **Custom Metrics** — Events processed, anomalies detected, anomaly rate per pipeline
