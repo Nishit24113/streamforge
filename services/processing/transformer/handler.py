@@ -26,6 +26,14 @@ def _get_operations():
         'uppercase': op_uppercase,
         'default': op_default,
         'hash': op_hash,
+        # Advanced operations
+        'regex_extract': op_regex_extract,
+        'regex_replace': op_regex_replace,
+        'regex_validate': op_regex_validate,
+        'parse_url': op_parse_url,
+        'extract_domain': op_extract_domain,
+        'geoip_lookup': op_geoip_lookup,
+        'parse_user_agent': op_parse_user_agent,
     }
 
 
@@ -227,6 +235,157 @@ def op_hash(record, config):
         hasher = hashlib.new(algorithm)
         hasher.update(str(record[field]).encode('utf-8'))
         record[field] = hasher.hexdigest()
+    return record
+
+
+# Advanced transform operations
+
+def op_regex_extract(record, config):
+    """Extract substring matching regex pattern."""
+    import re
+    field = config.get('field', '')
+    pattern = config.get('pattern', '')
+    group = config.get('group', 0)
+    target = config.get('target', f'{field}_extracted')
+
+    if field in record:
+        value = str(record[field])
+        match = re.search(pattern, value)
+        if match:
+            record[target] = match.group(group)
+        else:
+            record[target] = None
+    return record
+
+
+def op_regex_replace(record, config):
+    """Replace substring matching pattern."""
+    import re
+    field = config.get('field', '')
+    pattern = config.get('pattern', '')
+    replacement = config.get('replacement', '')
+
+    if field in record:
+        value = str(record[field])
+        record[field] = re.sub(pattern, replacement, value)
+    return record
+
+
+def op_regex_validate(record, config):
+    """Validate field against regex pattern."""
+    import re
+    field = config.get('field', '')
+    pattern = config.get('pattern', '')
+
+    if field in record:
+        value = str(record[field])
+        is_valid = bool(re.match(pattern, value))
+        record[f'{field}_valid'] = is_valid
+    return record
+
+
+def op_parse_url(record, config):
+    """Parse URL into components."""
+    from urllib.parse import urlparse, parse_qs
+    field = config.get('field', 'url')
+
+    if field in record:
+        url = record[field]
+        parsed = urlparse(url)
+        record['url_scheme'] = parsed.scheme
+        record['url_domain'] = parsed.netloc
+        record['url_path'] = parsed.path
+        record['url_query'] = dict(parse_qs(parsed.query))
+    return record
+
+
+def op_extract_domain(record, config):
+    """Extract domain from URL."""
+    from urllib.parse import urlparse
+    field = config.get('field', 'url')
+    include_subdomain = config.get('include_subdomain', False)
+
+    if field in record:
+        url = record[field]
+        parsed = urlparse(url)
+        domain = parsed.netloc
+
+        if not include_subdomain and domain:
+            parts = domain.split('.')
+            if len(parts) >= 2:
+                domain = '.'.join(parts[-2:])
+
+        record['domain'] = domain
+    return record
+
+
+def op_geoip_lookup(record, config):
+    """Lookup geographic location from IP address (simplified)."""
+    field = config.get('field', 'ip_address')
+
+    if field in record:
+        ip = record[field]
+
+        # Simplified GeoIP (in production, use MaxMind)
+        if ip.startswith('192.168.') or ip.startswith('10.'):
+            geo = {'country': 'PRIVATE', 'city': None, 'region': None}
+        else:
+            geo = {'country': 'US', 'city': 'Unknown', 'region': 'Unknown'}
+
+        record['geo_country'] = geo.get('country')
+        record['geo_city'] = geo.get('city')
+        record['geo_region'] = geo.get('region')
+    return record
+
+
+def op_parse_user_agent(record, config):
+    """Parse user agent string."""
+    field = config.get('field', 'user_agent')
+
+    if field in record:
+        ua = record[field]
+        ua_lower = ua.lower()
+
+        # Detect browser
+        if 'edg/' in ua_lower:
+            browser = 'Edge'
+        elif 'chrome/' in ua_lower:
+            browser = 'Chrome'
+        elif 'firefox/' in ua_lower:
+            browser = 'Firefox'
+        elif 'safari/' in ua_lower and 'chrome' not in ua_lower:
+            browser = 'Safari'
+        else:
+            browser = 'Unknown'
+
+        # Detect OS
+        if 'windows' in ua_lower:
+            os = 'Windows'
+        elif 'mac os' in ua_lower or 'macos' in ua_lower:
+            os = 'macOS'
+        elif 'iphone' in ua_lower or 'ipad' in ua_lower:
+            os = 'iOS'
+        elif 'android' in ua_lower:
+            os = 'Android'
+        elif 'linux' in ua_lower:
+            os = 'Linux'
+        else:
+            os = 'Unknown'
+
+        # Detect device
+        if 'mobile' in ua_lower or 'iphone' in ua_lower:
+            device = 'mobile'
+        elif 'tablet' in ua_lower or 'ipad' in ua_lower:
+            device = 'tablet'
+        else:
+            device = 'desktop'
+
+        record['browser'] = browser
+        record['os'] = os
+        record['device_type'] = device
+        record['is_mobile'] = device in ('mobile', 'tablet')
+        record['is_bot'] = 'bot' in ua_lower or 'crawler' in ua_lower
+
     return record
 
 

@@ -156,6 +156,8 @@ def handle_request(request):
 
 ### Pipeline Engine (Step Functions)
 - **12 Built-in Transforms** — rename, cast, flatten, hash, filter, map_values, extract, add_field, remove_field, lowercase, uppercase, default
+- **7 Advanced Transforms (NEW!)** — regex_extract, regex_replace, regex_validate, parse_url, extract_domain, geoip_lookup, parse_user_agent
+- See [ADVANCED_TRANSFORMS.md](ADVANCED_TRANSFORMS.md) for regex, URL parsing, GeoIP, and UA detection examples
 - **Schema Validation** — Type checking, null rejection, range bounds
 - **4 Anomaly Detection Algorithms** — Isolation Forest, Z-Score, IQR, MAD
 - **9 Aggregation Metrics** — sum, avg, min, max, count, count_distinct, stddev, p50, p95, p99
