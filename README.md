@@ -183,6 +183,14 @@ def handle_request(request):
 - **Lifecycle Management** — Infrequent Access at 30d, Glacier at 90d
 - **Snappy Compression** — ~90% size reduction
 
+### Data Export & Integration (NEW! 📤)
+- **CSV/JSON Export** — Download pipeline data with presigned URLs
+- **BigQuery Streaming** — Real-time data warehouse analytics (<1 min latency)
+- **Snowflake Bulk Export** — Daily/weekly data loads for BI tools
+- **Webhook Notifications** — Slack, Discord, custom endpoints
+- **Scheduled Exports** — Automated daily reports with EventBridge
+- See [DATA_EXPORT.md](DATA_EXPORT.md) for BigQuery/Snowflake integration and webhook setup
+
 ### Analytics (Athena)
 - **Serverless SQL** — Query petabytes, pay $5/TB scanned
 - **1GB Scan Limit** — Cost guardrails per query via workgroup
