@@ -148,6 +148,14 @@ def handle_request(request):
 - **CloudWatch Integration** — Quality metrics published for alerting
 - See [DATA_QUALITY.md](DATA_QUALITY.md) for scoring methodology and best practices
 
+### X-Ray Tracing & Observability (NEW! 🔍)
+- **Distributed Tracing** — End-to-end request tracking across Lambda, Kinesis, Step Functions, S3
+- **Latency Breakdown** — See which pipeline stage is slow (validate, transform, aggregate)
+- **Service Map** — Visualize dependencies and bottlenecks automatically
+- **Error Correlation** — Link failures across distributed components
+- **Trace Propagation** — Single trace ID flows through entire pipeline
+- See [OBSERVABILITY.md](OBSERVABILITY.md) for X-Ray setup, debugging scenarios, and insights queries
+
 ### Monitoring & Alerting
 - **CloudWatch Dashboard** — Real-time metrics for ingestion, processing, anomalies
 - **Custom Metrics** — Events processed, anomalies detected, anomaly rate per pipeline
