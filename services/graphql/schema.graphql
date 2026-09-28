@@ -1,0 +1,309 @@
+# StreamForge GraphQL API Schema
+# Modern API layer as alternative to REST
+
+"""
+Root Query type for read operations
+"""
+type Query {
+  # Pipeline queries
+  pipeline(id: ID!): Pipeline
+  pipelines(limit: Int, offset: Int, filter: PipelineFilter): PipelineConnection!
+
+  # Run queries
+  run(id: ID!): Run
+  runs(pipelineId: ID!, limit: Int, offset: Int): RunConnection!
+
+  # Event queries
+  events(pipelineId: ID!, dateFrom: String, dateTo: String, limit: Int): [Event!]!
+  event(id: ID!): Event
+
+  # Anomaly queries
+  anomalies(pipelineId: ID, severity: Severity, limit: Int): [Anomaly!]!
+
+  # Analytics queries
+  stats(pipelineId: ID): Stats!
+
+  # Template queries
+  templates: [Template!]!
+  template(id: ID!): Template
+}
+
+"""
+Root Mutation type for write operations
+"""
+type Mutation {
+  # Pipeline mutations
+  createPipeline(input: CreatePipelineInput!): CreatePipelinePayload!
+  updatePipeline(id: ID!, input: UpdatePipelineInput!): UpdatePipelinePayload!
+  deletePipeline(id: ID!): DeletePipelinePayload!
+
+  # Event mutations
+  ingestEvents(pipelineId: ID!, events: [EventInput!]!): IngestEventsPayload!
+
+  # Template mutations
+  createFromTemplate(templateId: ID!, variables: JSON): CreatePipelinePayload!
+}
+
+"""
+Root Subscription type for real-time updates
+"""
+type Subscription {
+  # Real-time event stream
+  eventStream(pipelineId: ID!): Event!
+
+  # Anomaly alerts
+  anomalyDetected(pipelineId: ID): Anomaly!
+
+  # Run status updates
+  runStatusChanged(pipelineId: ID!): Run!
+}
+
+"""
+Pipeline represents a data processing pipeline
+"""
+type Pipeline {
+  id: ID!
+  name: String!
+  orgId: String!
+  steps: [Step!]!
+  detectAnomalies: Boolean!
+  aggregate: Boolean!
+  createdAt: String!
+  updatedAt: String
+
+  # Relationships
+  runs(limit: Int, offset: Int): RunConnection!
+  latestRun: Run
+  stats: PipelineStats!
+}
+
+"""
+Step in a pipeline (validation, transformation, etc.)
+"""
+type Step {
+  type: StepType!
+  config: JSON
+}
+
+enum StepType {
+  VALIDATE
+  TRANSFORM
+  DETECT_ANOMALIES
+  AGGREGATE
+}
+
+"""
+Pipeline run execution
+"""
+type Run {
+  id: ID!
+  pipelineId: ID!
+  status: RunStatus!
+  eventsProcessed: Int!
+  anomaliesDetected: Int
+  startTime: String!
+  endTime: String
+  duration: Float
+  error: String
+
+  # Relationships
+  pipeline: Pipeline!
+  anomalies: [Anomaly!]!
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+"""
+Event data record
+"""
+type Event {
+  id: ID!
+  pipelineId: ID!
+  timestamp: String!
+  eventType: String
+  source: String
+  payload: JSON!
+  isAnomaly: Boolean
+  anomalyScore: Float
+
+  # Relationships
+  pipeline: Pipeline!
+}
+
+"""
+Anomaly detection result
+"""
+type Anomaly {
+  id: ID!
+  pipelineId: ID!
+  runId: ID!
+  eventId: ID!
+  field: String!
+  value: Float!
+  expectedRange: [Float!]
+  severity: Severity!
+  method: AnomalyMethod!
+  timestamp: String!
+
+  # Relationships
+  pipeline: Pipeline!
+  run: Run!
+  event: Event
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AnomalyMethod {
+  ISOLATION_FOREST
+  ZSCORE
+  IQR
+  MAD
+}
+
+"""
+Template for instant pipeline setup
+"""
+type Template {
+  id: ID!
+  name: String!
+  description: String!
+  category: String!
+  variables: [TemplateVariable!]!
+  sampleEvents: [JSON!]!
+  usageCount: Int
+}
+
+type TemplateVariable {
+  name: String!
+  description: String!
+  defaultValue: String
+  required: Boolean!
+}
+
+"""
+Statistics and metrics
+"""
+type Stats {
+  totalPipelines: Int!
+  totalRuns: Int!
+  totalEvents: Int!
+  totalAnomalies: Int!
+  avgEventsPerRun: Float!
+  anomalyRate: Float!
+}
+
+type PipelineStats {
+  totalRuns: Int!
+  totalEvents: Int!
+  totalAnomalies: Int!
+  avgEventsPerRun: Float!
+  anomalyRate: Float!
+  successRate: Float!
+}
+
+# Pagination types
+type PipelineConnection {
+  edges: [PipelineEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PipelineEdge {
+  node: Pipeline!
+  cursor: String!
+}
+
+type RunConnection {
+  edges: [RunEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type RunEdge {
+  node: Run!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# Input types
+input PipelineFilter {
+  orgId: String
+  name: String
+  detectAnomalies: Boolean
+  createdAfter: String
+  createdBefore: String
+}
+
+input CreatePipelineInput {
+  name: String!
+  orgId: String
+  steps: [StepInput!]!
+  detectAnomalies: Boolean
+  aggregate: Boolean
+}
+
+input UpdatePipelineInput {
+  name: String
+  steps: [StepInput!]
+  detectAnomalies: Boolean
+  aggregate: Boolean
+}
+
+input StepInput {
+  type: StepType!
+  config: JSON
+}
+
+input EventInput {
+  eventType: String
+  source: String
+  payload: JSON!
+  timestamp: String
+}
+
+# Payload types
+type CreatePipelinePayload {
+  pipeline: Pipeline!
+  errors: [Error!]
+}
+
+type UpdatePipelinePayload {
+  pipeline: Pipeline!
+  errors: [Error!]
+}
+
+type DeletePipelinePayload {
+  success: Boolean!
+  errors: [Error!]
+}
+
+type IngestEventsPayload {
+  eventsIngested: Int!
+  run: Run
+  errors: [Error!]
+}
+
+type Error {
+  message: String!
+  field: String
+  code: String
+}
+
+# Custom scalars
+scalar JSON
