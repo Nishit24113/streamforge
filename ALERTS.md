@@ -593,9 +593,52 @@ sf.configure_alerts(
 
 ---
 
+## Alert Aggregation
+
+During an incident, firing one notification per alert buries operators. The
+aggregator collects alerts over a time window and emits a single **digest**,
+collapsing similar alerts (same type + severity) into one line with a count.
+
+```python
+from streamforge.alerts import AlertAggregator
+
+aggregator = AlertAggregator()
+
+# Build a digest of the last 15 minutes
+digest = aggregator.build_digest('pipeline-123', window_minutes=15)
+# {
+#   'total_alerts': 42,
+#   'unique_groups': 3,
+#   'highest_severity': 'error',
+#   'summary': '42 alerts (3 distinct) for pipeline-123 — highest severity: ERROR',
+#   'groups': [{'alert_type': 'failure', 'severity': 'error', 'count': 38, ...}, ...]
+# }
+
+# Render for Slack
+slack_payload = aggregator.format_slack_digest(digest)
+```
+
+### Suppressing individual alerts
+
+Once the same (type, severity) fires past a threshold in the window, individual
+notifications are suppressed — the digest covers them. **Critical alerts are
+never suppressed.**
+
+```python
+if aggregator.should_suppress_individual('pipeline-123', 'failure', 'error', threshold=3):
+    # Skip the individual notification; the scheduled digest will include it
+    pass
+else:
+    manager.send_alert(...)
+```
+
+Groups are ranked highest-severity-first, then by count, so the digest leads
+with what matters most.
+
+---
+
 ## Roadmap
 
-- **Alert aggregation** - Group similar alerts into digest
 - **Custom alert rules** - Define custom triggers (e.g., "Alert if latency > 5s")
 - **PagerDuty integration** - Native PagerDuty support
 - **Mobile push notifications** - iOS/Android app alerts
