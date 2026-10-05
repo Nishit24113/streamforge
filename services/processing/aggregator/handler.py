@@ -118,7 +118,7 @@ def compute_aggregations(events, window_seconds, group_by, metrics):
                     except ValueError:
                         pass
 
-            if not values and agg_type != 'count':
+            if not values and agg_type not in ('count', 'count_distinct'):
                 agg[alias] = None
                 continue
 

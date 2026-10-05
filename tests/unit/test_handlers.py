@@ -40,11 +40,10 @@ class TestApiHandler:
         for p in patches:
             p.start()
 
-        import importlib
-        if 'services.ingestion.api-handler.handler' in __import__('sys').modules:
-            del __import__('sys').modules['services.ingestion.api-handler.handler']
-
         import sys
+        if 'handler' in sys.modules:
+            del sys.modules['handler']
+
         sys.path.insert(0, 'services/ingestion/api-handler')
         import handler as api_handler
         self.handler = api_handler
@@ -240,6 +239,9 @@ class TestTransformerOperations:
             p.start()
 
         import sys
+        if 'handler' in sys.modules:
+            del sys.modules['handler']
+
         sys.path.insert(0, 'services/processing/transformer')
         import handler as transformer
         self.handler = transformer

@@ -109,9 +109,11 @@ class TestContextManager:
     """Test 'with' statement support."""
 
     def test_context_manager_closes_session(self):
-        with StreamForge(api_url="https://api.example.com") as client:
-            assert client._session is not None
-            session = client._session
+        client = StreamForge(api_url="https://api.example.com")
+        session = client._session
+        session.close = MagicMock()
+        with client as entered:
+            assert entered._session is session
         session.close.assert_called_once()
 
 

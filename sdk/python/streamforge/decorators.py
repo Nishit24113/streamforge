@@ -28,7 +28,7 @@ def streamforge_event(pipeline_id: str, event_type: str = 'function_result'):
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
             try:
-                event = result if isinstance(result, dict) else {'result': result}
+                event = dict(result) if isinstance(result, dict) else {'result': result}
                 event.setdefault('event_type', event_type)
                 event.setdefault('timestamp', int(time.time() * 1000))
                 _get_client().ingest(pipeline_id, [event])

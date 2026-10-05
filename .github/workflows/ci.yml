@@ -30,19 +30,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest boto3 requests
 
-      - name: Run integration tests
-        run: pytest tests/integration/ -v --tb=short
+      - name: Install Python SDK
+        run: pip install -e sdk/python
+
+      - name: Run all tests
+        run: pytest tests/ --tb=short
         env:
           AWS_DEFAULT_REGION: us-west-2
           AWS_REGION: us-west-2
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
-
-      - name: Install Python SDK
-        run: pip install -e sdk/python
-
-      - name: Run SDK tests (optional)
-        run: pytest tests/unit/test_sdk_python.py tests/unit/test_sdk_decorators.py -v --tb=short || echo "SDK tests completed with some failures (expected)"
 
 
   # ---------------------------------------------------------------
