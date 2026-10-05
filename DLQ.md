@@ -213,11 +213,39 @@ dry-run, purge safety, SQS pagination, and malformed-message handling.
 
 ---
 
+## Metrics Dashboard
+
+Failure trends, reason breakdown, and replay recovery rate are surfaced in the
+DLQ metrics dashboard. Metrics are emitted to CloudWatch as events are
+dead-lettered and replayed:
+
+```python
+from streamforge.dlq import DLQMetrics
+
+metrics = DLQMetrics()
+
+# Emitted from the ingestion/processing path on failure
+metrics.record_failure('pipeline-123', 'schema_validation', count=5)
+
+# Emitted after a replay run
+metrics.record_replay('pipeline-123', replayed=38, still_failing=2)
+
+# Queried by the dashboard
+summary = metrics.get_dashboard_summary('pipeline-123', hours=24)
+# {'total_failures': 42, 'top_failure_reason': 'schema_validation',
+#  'by_reason': {...}, 'trend': [...], 'recovery': {'recovery_rate': 0.95, ...}}
+```
+
+```bash
+open https://dashboard.streamforge.com/dlq?pipeline=pipeline-123
+```
+
+---
+
 ## Roadmap
 
 - **Scheduled auto-replay** - Retry `downstream_timeout` failures on a backoff
 - **Replay rate limiting** - Throttle replay to avoid re-triggering `throttled`
-- **DLQ metrics dashboard** - Failure trends over time by reason
 - **Partial-field repair** - Patch known-bad fields before replay
 
 ---
