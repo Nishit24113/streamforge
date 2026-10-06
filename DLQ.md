@@ -242,9 +242,57 @@ open https://dashboard.streamforge.com/dlq?pipeline=pipeline-123
 
 ---
 
+## Scheduled Auto-Replay
+
+Transient failures — `downstream_timeout` and `throttled` — usually recover on
+their own if retried a little later. The auto-replay scheduler runs on an
+EventBridge schedule and retries only those **retryable** reasons, backing off
+between attempts so a still-unhealthy downstream isn't hammered. Permanent
+failures (`schema_validation`, `transform_error`) are never auto-retried — they
+need a fix first and stay in the DLQ for manual replay.
+
+```python
+from streamforge.dlq import AutoReplayScheduler
+
+scheduler = AutoReplayScheduler(dlq_url='...', stream_name='...')
+
+# One scheduled tick (called from the EventBridge Lambda)
+result = scheduler.run('pipeline-123')
+# {'action': 'replayed', 'attempt': 1, 'replayed': 5, 'still_failing': 1, ...}
+```
+
+**Backoff schedule** (minutes between attempts): `1 → 5 → 15 → 60`, then the
+pipeline is marked `exhausted` and left for manual intervention. Once the DLQ
+has no retryable failures left, the attempt counter resets so future incidents
+start fresh.
+
+| `action` | Meaning |
+|----------|---------|
+| `replayed` | Retryable events were re-injected this tick |
+| `waiting` | Backoff window hasn't elapsed yet |
+| `idle` | No retryable failures; counter reset |
+| `exhausted` | Max attempts reached; needs manual intervention |
+
+### EventBridge wiring
+
+```typescript
+// Run every minute per pipeline; the scheduler's own backoff gates real retries
+new events.Rule(this, 'AutoReplayRule', {
+  schedule: events.Schedule.rate(Duration.minutes(1)),
+  targets: [new targets.LambdaFunction(autoReplayFn, {
+    event: events.RuleTargetInput.fromObject({
+      pipeline_id: 'pipeline-123',
+      dlq_url: dlq.queueUrl,
+      stream_name: stream.streamName
+    })
+  })]
+});
+```
+
+---
+
 ## Roadmap
 
-- **Scheduled auto-replay** - Retry `downstream_timeout` failures on a backoff
 - **Replay rate limiting** - Throttle replay to avoid re-triggering `throttled`
 - **Partial-field repair** - Patch known-bad fields before replay
 
