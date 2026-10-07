@@ -128,9 +128,55 @@ engine.create_rule(
 
 ---
 
+## Score History & Trend Detection
+
+A point-in-time score tells you where a pipeline *is*; the history tells you
+where it's *heading*. Scores are persisted over time, and the series is analyzed
+to classify a trend and — critically — to catch **gradual degradation**: a slow
+decline that never trips a point-in-time threshold but quietly erodes a pipeline
+over hours.
+
+```python
+from streamforge.health import HealthHistory
+
+history = HealthHistory()
+
+# Persist each score as it's computed
+history.record_score('orders', score=85.0, status='degraded')
+
+# Analyze the recent window for a slow decline
+result = history.detect_gradual_degradation('orders', hours=6)
+# {
+#   'degrading': True,
+#   'trend': 'degrading',
+#   'current_score': 76,
+#   'peak_score': 92,
+#   'drop_from_peak': 16.0,
+#   'slope': -4.0,       # ~4 points lost per sample
+#   'change': -16.0,
+#   'samples': 5
+# }
+```
+
+### How the trend is classified
+
+A least-squares **slope** is fit over the recent score series:
+
+| Slope (points/sample) | Trend |
+|-----------------------|-------|
+| `<= -1.0` | `degrading` |
+| `>= +1.0` | `improving` |
+| in between | `stable` |
+| fewer than 3 samples | `unknown` |
+
+Missing (`None`) scores are filtered before analysis. This pairs with
+[custom alert rules](ALERTS.md#custom-alert-rules): alert on `degrading` trends
+*before* the absolute score reaches `critical`.
+
+---
+
 ## Roadmap
 
-- **Score history** - Track score over time to spot gradual degradation
 - **Configurable weights** - Per-pipeline weight overrides
 - **SLO budgets** - Translate scores into error-budget burn
 
