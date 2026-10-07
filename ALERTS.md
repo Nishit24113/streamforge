@@ -637,9 +637,66 @@ with what matters most.
 
 ---
 
+## Custom Alert Rules
+
+Beyond the built-in alert types, operators define **declarative rules** over
+pipeline metrics. A rule is one or more conditions (`metric operator threshold`)
+combined with `and`/`or`, a severity to emit, and a cooldown so a sustained
+breach produces one alert per window instead of a flood.
+
+```python
+from streamforge.alerts import AlertRulesEngine
+
+engine = AlertRulesEngine()
+
+# "Fire CRITICAL if anomaly rate > 5% AND throughput collapses below 10 eps"
+engine.create_rule(
+    pipeline_id='pipeline-123',
+    name='anomaly-with-stall',
+    conditions=[
+        {'metric': 'anomaly_rate', 'operator': 'gt', 'threshold': 0.05},
+        {'metric': 'throughput', 'operator': 'lt', 'threshold': 10}
+    ],
+    severity='critical',
+    logical_op='and',
+    cooldown_minutes=15
+)
+
+# Evaluate against a metrics snapshot (called from the metrics pipeline)
+alerts = engine.evaluate_all('pipeline-123', {
+    'anomaly_rate': 0.08,
+    'throughput': 5,
+    'latency': 1200
+})
+# -> [{'alert_type': 'custom_rule', 'severity': 'critical',
+#      'title': 'Alert rule triggered: anomaly-with-stall', ...}]
+```
+
+### Operators
+
+| Operator | Meaning |
+|----------|---------|
+| `gt` / `gte` | greater than / or equal |
+| `lt` / `lte` | less than / or equal |
+| `eq` / `neq` | equal / not equal |
+
+### Behavior
+
+- **AND** rules fire only when *every* condition holds; **OR** rules fire when *any* does.
+- A missing or non-numeric metric makes its condition false (never crashes evaluation).
+- Operators are validated at rule-creation time, so malformed rules are rejected early.
+- Each fired rule records its fire time; it won't re-fire until `cooldown_minutes` elapse.
+
+The returned alert payloads are handed to the [alert manager](#notification-channels),
+which delivers them over the configured channels and (with the aggregator)
+folds repeated firings into digests.
+
+---
+
 ## Roadmap
 
-- **Custom alert rules** - Define custom triggers (e.g., "Alert if latency > 5s")
+- **Rule templates** - Prebuilt rules for common SLOs (latency, error rate)
+- **Time-window conditions** - "latency > 5s for 5 consecutive minutes"
 - **PagerDuty integration** - Native PagerDuty support
 - **Mobile push notifications** - iOS/Android app alerts
 - **Alert templates** - Customizable message templates
